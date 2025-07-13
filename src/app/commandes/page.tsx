@@ -26,18 +26,25 @@ interface Commande {
 
 type CommandeCache = { id: number; status: string };
 
-
 export default function CommandesPage() {
   const [commandes, setCommandes] = useState<Commande[]>([]);
   const [commandesTerminees, setCommandesTerminees] = useState<Commande[]>([]);
   const [loading, setLoading] = useState(true);
   const [afficherTerminees, setAfficherTerminees] = useState(false);
+  const [sonActif, setSonActif] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const playSound = () => {
-    if (audioRef.current) {
+  const playNotification = () => {
+    if (sonActif && audioRef.current) {
       audioRef.current.currentTime = 0;
-      audioRef.current.play();
+      audioRef.current.play().catch(() => {});
+    }
+  };
+
+  const stopNotification = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
     }
   };
 
@@ -47,26 +54,28 @@ export default function CommandesPage() {
       const data: Commande[] = await res.json();
 
       const cached = localStorage.getItem('commandes-cache');
+      const currentStatus = data.map(({ id, status }) => ({ id, status }));
+      const currentProcessing = data.filter((cmd) => cmd.status === 'processing');
+
+      let shouldPlay = false;
+
       if (cached) {
-        const previous = JSON.parse(cached);
-        const current = data.map(({ id, status }) => ({ id, status }));
-
-        const hasChanges =
-          previous.length !== current.length ||
-        previous.some((c: CommandeCache, i: number) => c.id !== current[i]?.id || c.status !== current[i]?.status)
-
-        if (hasChanges) {
-          playSound();
-        }
+        const previous: CommandeCache[] = JSON.parse(cached);
+        const previousProcessing = previous.filter((c) => c.status === 'processing');
+        shouldPlay = currentProcessing.some(
+          (c) => !previousProcessing.find((p) => p.id === c.id)
+        );
       } else {
-        playSound();
+        shouldPlay = currentProcessing.length > 0;
       }
 
-      localStorage.setItem(
-        'commandes-cache',
-        JSON.stringify(data.map(({ id, status }) => ({ id, status })))
-      );
+      if (currentProcessing.length === 0) {
+        stopNotification();
+      } else if (shouldPlay) {
+        playNotification();
+      }
 
+      localStorage.setItem('commandes-cache', JSON.stringify(currentStatus));
       setCommandes(data);
     } catch (error) {
       console.error('Erreur chargement commandes:', error);
@@ -112,7 +121,6 @@ export default function CommandesPage() {
     win?.close();
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchCommandes();
     fetchCommandesTerminees();
@@ -145,6 +153,14 @@ export default function CommandesPage() {
         >
           Voir terminées
         </button>
+        <button
+          className={`${
+            sonActif ? 'bg-green-600' : 'bg-red-600'
+          } hover:opacity-80 text-white px-4 py-2 rounded shadow`}
+          onClick={() => setSonActif(!sonActif)}
+        >
+          Notifications sonores {sonActif ? 'activées' : 'désactivées'}
+        </button>
       </div>
 
       {loading ? (
@@ -153,16 +169,14 @@ export default function CommandesPage() {
         <div>
           <h2 className="text-xl font-semibold mb-2">✅ Terminées</h2>
           <div className="flex flex-wrap gap-4">
-            {commandesTerminees
-              .filter((cmd) => cmd.status === 'completed')
-              .map((cmd) => (
-                <CommandeCard
-                  key={cmd.id}
-                  commande={cmd}
-                  onUpdate={updateCommande}
-                  onPrint={imprimerCommande}
-                />
-              ))}
+            {commandesTerminees.map((cmd) => (
+              <CommandeCard
+                key={cmd.id}
+                commande={cmd}
+                onUpdate={updateCommande}
+                onPrint={imprimerCommande}
+              />
+            ))}
           </div>
         </div>
       ) : (
