@@ -24,6 +24,9 @@ interface Commande {
   line_items: LineItem[];
 }
 
+type CommandeCache = { id: number; status: string };
+
+
 export default function CommandesPage() {
   const [commandes, setCommandes] = useState<Commande[]>([]);
   const [commandesTerminees, setCommandesTerminees] = useState<Commande[]>([]);
@@ -50,7 +53,7 @@ export default function CommandesPage() {
 
         const hasChanges =
           previous.length !== current.length ||
-          previous.some((c: any, i: number) => c.id !== current[i]?.id || c.status !== current[i]?.status);
+        previous.some((c: CommandeCache, i: number) => c.id !== current[i]?.id || c.status !== current[i]?.status)
 
         if (hasChanges) {
           playSound();
@@ -109,6 +112,7 @@ export default function CommandesPage() {
     win?.close();
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchCommandes();
     fetchCommandesTerminees();
