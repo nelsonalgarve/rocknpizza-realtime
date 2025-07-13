@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function PATCH(request: NextRequest, context: { params: { id: string } }) {
-  const id = context.params.id;
-
+export async function PATCH(request: NextRequest) {
   try {
+    // Extraire l'ID de la commande depuis l'URL
+    const url = new URL(request.url);
+    const segments = url.pathname.split('/');
+    const id = segments[segments.length - 1]; // récupère le [id]
+
     const updateData = await request.json();
 
     const wcBase = process.env.WOOCOMMERCE_URL!;
