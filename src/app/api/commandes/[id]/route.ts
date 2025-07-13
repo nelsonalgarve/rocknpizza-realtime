@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { NextApiRequest } from 'next';
+// import type { NextApiRequest } from 'next';
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   const id = params.id;
