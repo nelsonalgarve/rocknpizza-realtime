@@ -31,20 +31,25 @@ export default function CommandesPage() {
   const [commandesTerminees, setCommandesTerminees] = useState<Commande[]>([]);
   const [loading, setLoading] = useState(true);
   const [afficherTerminees, setAfficherTerminees] = useState(false);
-  const [sonActif, setSonActif] = useState(true);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [sonActif, setSonActif] = useState(false);
+  const [nextNotifIn, setNextNotifIn] = useState(15);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const sonIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const countdownRef = useRef<NodeJS.Timeout | null>(null);
 
   const playNotification = () => {
-    if (sonActif && audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().catch(() => {});
+    const audio = audioRef.current;
+    if (sonActif && audio) {
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
     }
   };
 
   const stopNotification = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
     }
   };
 
@@ -71,8 +76,24 @@ export default function CommandesPage() {
 
       if (currentProcessing.length === 0) {
         stopNotification();
-      } else if (shouldPlay) {
+        if (sonIntervalRef.current) clearInterval(sonIntervalRef.current);
+        if (countdownRef.current) clearInterval(countdownRef.current);
+        setNextNotifIn(15);
+      } else if (shouldPlay || sonActif) {
         playNotification();
+        if (sonIntervalRef.current) clearInterval(sonIntervalRef.current);
+        if (countdownRef.current) clearInterval(countdownRef.current);
+        setNextNotifIn(15);
+
+        countdownRef.current = setInterval(() => {
+          setNextNotifIn((prev) => (prev <= 1 ? 15 : prev - 1));
+        }, 1000);
+
+        sonIntervalRef.current = setInterval(() => {
+          if (sonActif && currentProcessing.length > 0) {
+            playNotification();
+          }
+        }, 15000);
       }
 
       localStorage.setItem('commandes-cache', JSON.stringify(currentStatus));
@@ -128,7 +149,11 @@ export default function CommandesPage() {
       fetchCommandes();
       fetchCommandesTerminees();
     }, 10000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (sonIntervalRef.current) clearInterval(sonIntervalRef.current);
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
   }, []);
 
   const commandesParStatut = (statut: string, source: Commande[] = commandes) =>
@@ -140,7 +165,7 @@ export default function CommandesPage() {
 
       <h1 className="text-2xl font-bold mb-4">📦 Commandes</h1>
 
-      <div className="flex flex-wrap gap-2 mb-6">
+      <div className="flex flex-wrap gap-2 mb-6 items-center">
         <button
           className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded shadow"
           onClick={() => setAfficherTerminees(false)}
@@ -157,10 +182,24 @@ export default function CommandesPage() {
           className={`${
             sonActif ? 'bg-green-600' : 'bg-red-600'
           } hover:opacity-80 text-white px-4 py-2 rounded shadow`}
-          onClick={() => setSonActif(!sonActif)}
+          onClick={() => {
+            setSonActif((prev) => !prev);
+            const audio = audioRef.current;
+            if (!sonActif && audio) {
+              audio.play().then(() => {
+                audio.pause();
+                audio.currentTime = 0;
+              }).catch(() => {});
+            }
+          }}
         >
-          Notifications sonores {sonActif ? 'activées' : 'désactivées'}
+          🔔 Notifications {sonActif ? 'activées' : 'désactivées'}
         </button>
+        {sonActif && (
+          <span className="text-sm text-gray-700">
+            Prochaine alerte dans {nextNotifIn}s
+          </span>
+        )}
       </div>
 
       {loading ? (
