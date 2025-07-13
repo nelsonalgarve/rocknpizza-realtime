@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-// import type { NextApiRequest } from 'next';
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
-  const id = params.id;
+export async function PATCH(request: NextRequest, context: { params: { id: string } }) {
+  const id = context.params.id;
 
   try {
     const updateData = await request.json();
