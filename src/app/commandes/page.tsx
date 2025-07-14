@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import CommandeCard from '@/components/CommandeCard';
+import toast from 'react-hot-toast';
 
 interface LineItem {
   name: string;
@@ -31,17 +32,36 @@ export default function CommandesPage() {
   const [commandesTerminees, setCommandesTerminees] = useState<Commande[]>([]);
   const [loading, setLoading] = useState(true);
   const [afficherTerminees, setAfficherTerminees] = useState(false);
-  const [sonActif, setSonActif] = useState(false);
+  const [sonActif, setSonActif] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('son-actif') === 'true';
+    }
+    return false;
+  });
   const [nextNotifIn, setNextNotifIn] = useState(15);
   const audioRef = useRef<HTMLAudioElement>(null);
   const sonIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
 
-  const playNotification = () => {
+  const activerSon = () => {
+    setSonActif(true);
+    localStorage.setItem('son-actif', 'true');
+  };
+
+  const desactiverSon = () => {
+    setSonActif(false);
+    localStorage.setItem('son-actif', 'false');
+  };
+
+  const playNotification = async () => {
     const audio = audioRef.current;
     if (sonActif && audio) {
-      audio.currentTime = 0;
-      audio.play().catch(() => {});
+      try {
+        audio.currentTime = 0;
+        await audio.play();
+      } catch (e) {
+        console.warn('Erreur lecture audio :', e);
+      }
     }
   };
 
@@ -63,7 +83,6 @@ export default function CommandesPage() {
       const currentProcessing = data.filter((cmd) => cmd.status === 'processing');
 
       let shouldPlay = false;
-
       if (cached) {
         const previous: CommandeCache[] = JSON.parse(cached);
         const previousProcessing = previous.filter((c) => c.status === 'processing');
@@ -80,15 +99,34 @@ export default function CommandesPage() {
         if (countdownRef.current) clearInterval(countdownRef.current);
         setNextNotifIn(15);
       } else if (shouldPlay || sonActif) {
-        playNotification();
+        if (shouldPlay && !sonActif) {
+          toast('📦 Nouvelle commande reçue ! Activez les sons si vous souhaitez être notifié.');
+        } else {
+          await playNotification();
+        }
+
         if (sonIntervalRef.current) clearInterval(sonIntervalRef.current);
         if (countdownRef.current) clearInterval(countdownRef.current);
-        setNextNotifIn(15);
 
+        setNextNotifIn(15);
         countdownRef.current = setInterval(() => {
           setNextNotifIn((prev) => (prev <= 1 ? 15 : prev - 1));
         }, 1000);
 
+        sonIntervalRef.current = setInterval(() => {
+          if (sonActif && currentProcessing.length > 0) {
+            playNotification();
+          }
+        }, 15000);
+      }
+
+      // 🔁 Première visite : son actif + commandes => déclenche tout
+      if (!cached && sonActif && currentProcessing.length > 0) {
+        await playNotification();
+        setNextNotifIn(15);
+        countdownRef.current = setInterval(() => {
+          setNextNotifIn((prev) => (prev <= 1 ? 15 : prev - 1));
+        }, 1000);
         sonIntervalRef.current = setInterval(() => {
           if (sonActif && currentProcessing.length > 0) {
             playNotification();
@@ -163,6 +201,32 @@ export default function CommandesPage() {
     <div className="p-4">
       <audio ref={audioRef} src="/ding.mp3" preload="auto" />
 
+      {!sonActif && (
+        <div className="mb-4 p-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 rounded animate-fade-in">
+          <p className="mb-2 font-semibold">🔊 Notifications sonores désactivées</p>
+          <button
+            onClick={async () => {
+              const audio = audioRef.current;
+              if (audio) {
+                try {
+                  await audio.play();
+                  audio.pause();
+                  audio.currentTime = 0;
+                  activerSon();
+                  toast.success('Notifications sonores activées ✅');
+                } catch (e) {
+                  toast.error('Le navigateur bloque encore l’audio.');
+                  console.error('Erreur autorisation audio:', e);
+                }
+              }
+            }}
+            className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded shadow"
+          >
+            Autoriser les sons maintenant
+          </button>
+        </div>
+      )}
+
       <h1 className="text-2xl font-bold mb-4">📦 Commandes</h1>
 
       <div className="flex flex-wrap gap-2 mb-6 items-center">
@@ -182,14 +246,20 @@ export default function CommandesPage() {
           className={`${
             sonActif ? 'bg-green-600' : 'bg-red-600'
           } hover:opacity-80 text-white px-4 py-2 rounded shadow`}
-          onClick={() => {
-            setSonActif((prev) => !prev);
+          onClick={async () => {
             const audio = audioRef.current;
             if (!sonActif && audio) {
-              audio.play().then(() => {
+              try {
+                await audio.play();
                 audio.pause();
                 audio.currentTime = 0;
-              }).catch(() => {});
+                activerSon();
+                toast.success('Notifications sonores activées ✅');
+              } catch {
+                toast.error("Le navigateur bloque l'audio. Cliquez pour autoriser.");
+              }
+            } else {
+              desactiverSon();
             }
           }}
         >
@@ -204,50 +274,74 @@ export default function CommandesPage() {
 
       {loading ? (
         <p>Chargement...</p>
-      ) : afficherTerminees ? (
-        <div>
-          <h2 className="text-xl font-semibold mb-2">✅ Terminées</h2>
-          <div className="flex flex-wrap gap-4">
-            {commandesTerminees.map((cmd) => (
-              <CommandeCard
-                key={cmd.id}
-                commande={cmd}
-                onUpdate={updateCommande}
-                onPrint={imprimerCommande}
-              />
-            ))}
-          </div>
-        </div>
       ) : (
-        <>
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold mb-2">🟠 Confirmées / Payées</h2>
-            <div className="flex flex-wrap gap-4">
-              {commandesParStatut('processing').map((cmd) => (
-                <CommandeCard
-                  key={cmd.id}
-                  commande={cmd}
-                  onUpdate={updateCommande}
-                  onPrint={imprimerCommande}
-                />
-              ))}
-            </div>
-          </div>
+        <div className="space-y-10 animate-fade-in">
+          {!afficherTerminees && (
+            <>
+              {/* Confirmées */}
+              <section className="bg-white rounded-xl shadow p-5 border border-orange-300">
+                <h2 className="text-xl font-bold text-orange-600 mb-4">
+                  🟠 Confirmées / Payées
+                </h2>
+                {commandesParStatut('processing').length === 0 ? (
+                  <p className="text-gray-500 italic">Aucune commande confirmée.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-4">
+                    {commandesParStatut('processing').map((cmd) => (
+                      <CommandeCard
+                        key={cmd.id}
+                        commande={cmd}
+                        onUpdate={updateCommande}
+                        onPrint={imprimerCommande}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
 
-          <div>
-            <h2 className="text-xl font-semibold mb-2">🧑‍🍳 En préparation</h2>
-            <div className="flex flex-wrap gap-4">
-              {commandesParStatut('preparation').map((cmd) => (
-                <CommandeCard
-                  key={cmd.id}
-                  commande={cmd}
-                  onUpdate={updateCommande}
-                  onPrint={imprimerCommande}
-                />
-              ))}
-            </div>
-          </div>
-        </>
+              {/* Préparation */}
+              <section className="bg-white rounded-xl shadow p-5 border border-blue-300">
+                <h2 className="text-xl font-bold text-blue-600 mb-4">
+                  🧑‍🍳 En préparation
+                </h2>
+                {commandesParStatut('preparation').length === 0 ? (
+                  <p className="text-gray-500 italic">Aucune commande en préparation.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-4">
+                    {commandesParStatut('preparation').map((cmd) => (
+                      <CommandeCard
+                        key={cmd.id}
+                        commande={cmd}
+                        onUpdate={updateCommande}
+                        onPrint={imprimerCommande}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
+          )}
+
+          {afficherTerminees && (
+            <section className="bg-white rounded-xl shadow p-5 border border-gray-400">
+              <h2 className="text-xl font-bold text-gray-800 mb-4">✅ Terminées</h2>
+              {commandesTerminees.length === 0 ? (
+                <p className="text-gray-500 italic">Aucune commande terminée.</p>
+              ) : (
+                <div className="flex flex-wrap gap-4">
+                  {commandesTerminees.map((cmd) => (
+                    <CommandeCard
+                      key={cmd.id}
+                      commande={cmd}
+                      onUpdate={updateCommande}
+                      onPrint={imprimerCommande}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+        </div>
       )}
     </div>
   );
