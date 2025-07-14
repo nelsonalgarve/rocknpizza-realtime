@@ -121,6 +121,7 @@ export default function CommandesPage() {
 
       if (isNewOrder) {
         await playNotification();
+        toast.success('📦 Nouvelle commande reçue');
       }
 
       if (hasProcessing && sonActif) {
@@ -161,6 +162,7 @@ export default function CommandesPage() {
         return;
       }
 
+      toast.success('✅ Statut mis à jour');
       await fetchCommandes();
       await fetchCommandesTerminees();
     } catch (err) {
@@ -199,13 +201,13 @@ export default function CommandesPage() {
 
       <div className="flex flex-wrap gap-2 mb-6 items-center">
         <button
-          className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded shadow"
+          className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded shadow transition duration-200 focus:outline-none focus:ring-2 focus:ring-orange-300 scale-[.98] active:scale-95"
           onClick={() => setAfficherTerminees(false)}
         >
           Voir commandes actives
         </button>
         <button
-          className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded shadow"
+          className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded shadow transition duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400 scale-[.98] active:scale-95"
           onClick={() => setAfficherTerminees(true)}
         >
           Voir terminées
@@ -213,7 +215,7 @@ export default function CommandesPage() {
         <button
           className={`${
             sonActif ? 'bg-green-600' : 'bg-red-600'
-          } hover:opacity-80 text-white px-4 py-2 rounded shadow`}
+          } text-white px-4 py-2 rounded shadow transition duration-200 focus:outline-none focus:ring-2 scale-[.98] active:scale-95`}
           onClick={() => {
             if (sonActif) {
               desactiverSon();
@@ -256,6 +258,7 @@ export default function CommandesPage() {
                 commande={cmd}
                 onUpdate={updateCommande}
                 onPrint={imprimerCommande}
+                className="animate-fade-in transition-transform duration-500"
               />
             ))}
           </div>
@@ -271,6 +274,7 @@ export default function CommandesPage() {
                   commande={cmd}
                   onUpdate={updateCommande}
                   onPrint={imprimerCommande}
+                  className="animate-fade-in transition-transform duration-500"
                 />
               ))}
             </div>
@@ -285,6 +289,7 @@ export default function CommandesPage() {
                   commande={cmd}
                   onUpdate={updateCommande}
                   onPrint={imprimerCommande}
+                  className="animate-fade-in transition-transform duration-500"
                 />
               ))}
             </div>
