@@ -249,8 +249,13 @@ useEffect(() => {
   <button
     className={`${sonActif ? 'bg-green-600' : 'bg-red-600'} text-white px-4 py-2 rounded shadow transition duration-200`}
     onClick={() => {
-      sonActif ? desactiverSon() : activerSon();
-    }}
+  if (sonActif) {
+    desactiverSon();
+  } else {
+    activerSon();
+  }
+}}
+
   >
     🔔 Notifications {sonActif ? 'activées' : 'désactivées'}
   </button>
