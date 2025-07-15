@@ -1,4 +1,3 @@
-// ✅ Composant complet CommandesPage.tsx avec filtre journalier pour les commandes terminées
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
@@ -29,22 +28,60 @@ interface Commande {
 
 type CommandeCache = { id: number; status: string };
 
+type PizzaGroup = {
+  total: number;
+  commandes: { id: number; client: string }[];
+};
+
+function groupAndSortPizzas(commandes: Commande[]): Record<string, PizzaGroup> {
+  const result: Record<string, PizzaGroup> = {};
+
+  commandes.forEach((commande) => {
+    const client = `${commande.billing.first_name} ${commande.billing.last_name}`;
+    commande.line_items.forEach((item) => {
+      if (!result[item.name]) {
+        result[item.name] = { total: 0, commandes: [] };
+      }
+      result[item.name].total += item.quantity;
+      result[item.name].commandes.push({ id: commande.id, client });
+    });
+  });
+
+  return Object.keys(result)
+    .sort((a, b) => a.localeCompare(b))
+    .reduce((acc, key) => {
+      acc[key] = result[key];
+      return acc;
+    }, {} as Record<string, PizzaGroup>);
+}
+
 export default function CommandesPage() {
   const [commandes, setCommandes] = useState<Commande[]>([]);
   const [commandesTerminees, setCommandesTerminees] = useState<Commande[]>([]);
   const [loading, setLoading] = useState(true);
-  const [afficherTerminees, setAfficherTerminees] = useState(false);
-  const [filtreDate, setFiltreDate] = useState<string>(() => dayjs().format('YYYY-MM-DD'));
-  const [sonActif, setSonActif] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('son-actif') === 'true';
-    }
-    return false;
-  });
+  const [ongletActif, setOngletActif] = useState<'actives' | 'terminees' | 'pizzas'>('actives');
+  const [filtreDate, setFiltreDate] = useState(() => dayjs().format('YYYY-MM-DD'));
+  const [sonActif, setSonActif] = useState(false);
+  const [pizzasCochees, setPizzasCochees] = useState<string[]>([]);
   const [nextNotifIn, setNextNotifIn] = useState(15);
+
   const audioRef = useRef<HTMLAudioElement>(null);
   const sonIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setSonActif(localStorage.getItem('son-actif') === 'true');
+      const saved = localStorage.getItem('pizzas-cochees');
+      if (saved) {
+        try {
+          setPizzasCochees(JSON.parse(saved));
+        } catch {
+          setPizzasCochees([]);
+        }
+      }
+    }
+  }, []);
 
   const playNotification = useCallback(async () => {
     const audio = audioRef.current;
@@ -91,9 +128,7 @@ export default function CommandesPage() {
     setSonActif(true);
     localStorage.setItem('son-actif', 'true');
     const commandesEnCours = commandes.filter((cmd) => cmd.status === 'processing');
-    if (commandesEnCours.length > 0) {
-      startSoundLoop();
-    }
+    if (commandesEnCours.length > 0) startSoundLoop();
   };
 
   const desactiverSon = () => {
@@ -106,7 +141,6 @@ export default function CommandesPage() {
     try {
       const res = await fetch('/api/commandes?status=processing,preparation');
       const data: Commande[] = await res.json();
-
       const cached = localStorage.getItem('commandes-cache');
       const currentStatus = data.map(({ id, status }) => ({ id, status }));
       const currentProcessing = data.filter((cmd) => cmd.status === 'processing');
@@ -126,11 +160,8 @@ export default function CommandesPage() {
         toast.success('📦 Nouvelle commande reçue');
       }
 
-      if (hasProcessing && sonActif) {
-        startSoundLoop();
-      } else {
-        stopSoundLoop();
-      }
+      if (hasProcessing && sonActif) startSoundLoop();
+      else stopSoundLoop();
 
       localStorage.setItem('commandes-cache', JSON.stringify(currentStatus));
       setCommandes(data);
@@ -153,24 +184,12 @@ export default function CommandesPage() {
 
   const updateCommande = async (id: number, updateData: Record<string, string>) => {
     try {
-      const res = await fetch(`/api/commandes/${id}`, {
+      await fetch(`/api/commandes/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateData),
       });
 
-      if (!res.ok) {
-        console.error('Échec de la mise à jour:', await res.text());
-        return;
-      }
-
-      const updatedCommande = commandes.find((cmd) => cmd.id === id);
-      const client = updatedCommande ? `${updatedCommande.billing.first_name} ${updatedCommande.billing.last_name}` : 'Client inconnu';
-      const nouveauStatut = updateData.status;
-
-      const statutLisible = nouveauStatut === 'processing' ? '🟠 Confirmée' : nouveauStatut === 'preparation' ? '🧑‍🍳 En préparation' : nouveauStatut === 'completed' ? '✅ Terminée' : nouveauStatut;
-
-      toast.success(`✅ Statut mis à jour pour ${client} → ${statutLisible}`);
       await fetchCommandes();
       await fetchCommandesTerminees();
     } catch (err) {
@@ -178,12 +197,12 @@ export default function CommandesPage() {
     }
   };
 
-  const imprimerCommande = (commande: Commande) => {
-    const win = window.open('', '_blank');
-    win?.document.write(`<pre>${JSON.stringify(commande, null, 2)}</pre>`);
-    win?.print();
-    win?.close();
-  };
+  const commandesParStatut = (statut: string) =>
+    commandes.filter((cmd) => cmd.status === statut);
+
+  const commandesTermineesFiltrees = commandesTerminees.filter((cmd) =>
+    dayjs(cmd.date_created).format('YYYY-MM-DD') === filtreDate
+  );
 
   useEffect(() => {
     fetchCommandes();
@@ -198,146 +217,91 @@ export default function CommandesPage() {
     };
   }, [fetchCommandes, stopSoundLoop]);
 
-  const commandesParStatut = (statut: string, source: Commande[] = commandes) =>
-    source.filter((cmd) => cmd.status === statut);
-
-  const commandesTermineesFiltrees = commandesTerminees.filter((cmd) =>
-    dayjs(cmd.date_created).format('YYYY-MM-DD') === filtreDate
-  );
+  const togglePizza = (key: string) => {
+    setPizzasCochees((prev) => {
+      const updated = prev.includes(key)
+        ? prev.filter((k) => k !== key)
+        : [...prev, key];
+      localStorage.setItem('pizzas-cochees', JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   return (
     <div className="p-4 space-y-12">
       <audio ref={audioRef} src="/ding.mp3" preload="auto" />
-
       <h1 className="text-2xl font-bold mb-4">📦 Commandes</h1>
 
-      {/* Boutons et filtres */}
+      {/* Onglets */}
       <div className="flex flex-wrap gap-2 mb-6 items-center">
-        <button
-          className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded shadow transition duration-200"
-          onClick={() => setAfficherTerminees(false)}
-        >
-          Voir commandes actives
-        </button>
-        <button
-          className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded shadow transition duration-200"
-          onClick={() => setAfficherTerminees(true)}
-        >
-          Voir terminées
-        </button>
-        <button
-          className={`${sonActif ? 'bg-green-600' : 'bg-red-600'} text-white px-4 py-2 rounded shadow transition duration-200`}
-          onClick={() => {
-            if (sonActif) {
-              desactiverSon();
-            } else {
-              activerSon();
-            }
-          }}
+        <button onClick={() => setOngletActif('actives')} className="bg-orange-500 text-white px-4 py-2 rounded">Commandes actives</button>
+        <button onClick={() => setOngletActif('terminees')} className="bg-gray-700 text-white px-4 py-2 rounded">Commandes terminées</button>
+        <button onClick={() => setOngletActif('pizzas')} className="bg-pink-600 text-white px-4 py-2 rounded">Pizzas à préparer</button>
+        <button onClick={() => (sonActif ? desactiverSon() : activerSon())}
+          className={`${sonActif ? 'bg-green-600' : 'bg-red-600'} text-white px-4 py-2 rounded`}
         >
           🔔 Notifications {sonActif ? 'activées' : 'désactivées'}
         </button>
-        {sonActif && (
-          <span className="text-sm text-gray-700">
-            Prochaine alerte dans {nextNotifIn}s
-          </span>
-        )}
+        {sonActif && <span className="text-sm text-gray-700">Prochaine alerte dans {nextNotifIn}s</span>}
       </div>
 
-      {afficherTerminees && (
-        <div className="mb-4">
-          <label className="text-sm mr-2 font-medium text-gray-700">Filtrer par date :</label>
-          <input
-            type="date"
-            value={filtreDate}
-            onChange={(e) => setFiltreDate(e.target.value)}
-            className="border px-3 py-1 rounded shadow-sm text-sm"
-          />
-          <button
-            className="ml-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded shadow"
-            onClick={() => {
-              const commandesDuJour = commandesTermineesFiltrees;
-              import('jspdf').then(async ({ jsPDF }) => {
-                const autoTable = (await import('jspdf-autotable')).default;
-                const doc = new jsPDF();
-                const logo = new Image();
-                logo.src = '/logo.png';
-                logo.onload = () => {
-                  doc.addImage(logo, 'PNG', 10, 10, 30, 30);
-                  doc.setFontSize(16);
-                  doc.text(`Commandes du ${filtreDate}`, 50, 20);
-                  const rows = commandesDuJour.map((cmd) => [
-                    cmd.id,
-                    `${cmd.billing.first_name} ${cmd.billing.last_name}`,
-                    dayjs(cmd.date_created).format('HH:mm'),
-                    `${cmd.total} €`,
-                    cmd.line_items.map((i) => `${i.quantity}× ${i.name}`).join(', ')
-                  ]);
-                  autoTable(doc, {
-                    startY: 50,
-                    head: [['ID', 'Client', 'Heure', 'Total', 'Produits']],
-                    body: rows,
-                    styles: { fontSize: 10, cellPadding: 3 },
-                    headStyles: { fillColor: [60, 60, 60] },
-                  });
-                  doc.save(`commandes_${filtreDate}.pdf`);
-                };
-              });
-            }}
-          >
-            📄 Export PDF du jour
-          </button>
-        </div>
-      )}
-
+      {/* Contenu par onglet */}
       {loading ? (
         <p>Chargement...</p>
-      ) : afficherTerminees ? (
+      ) : ongletActif === 'terminees' ? (
         <div>
-          <h2 className="text-xl font-semibold mb-2">✅ Terminées ({filtreDate})</h2>
-          <div className="flex flex-wrap gap-4">
+          <h2 className="text-xl font-semibold mb-2">✅ Terminées</h2>
+          <input type="date" value={filtreDate} onChange={(e) => setFiltreDate(e.target.value)} className="border px-2 py-1" />
+          <div className="mt-4 flex flex-wrap gap-4">
             {commandesTermineesFiltrees.map((cmd) => (
-              <CommandeCard
-                key={cmd.id}
-                commande={cmd}
-                onUpdate={updateCommande}
-                onPrint={imprimerCommande}
-                className="animate-fade-in transition-transform duration-500 min-h-[400px]"
-              />
+              <CommandeCard key={cmd.id} commande={cmd} onUpdate={updateCommande} />
             ))}
-            {commandesTermineesFiltrees.length === 0 && (
-              <p className="text-gray-500 italic">Aucune commande terminée pour cette date.</p>
-            )}
           </div>
         </div>
+      ) : ongletActif === 'pizzas' ? (
+        <section>
+          <h2 className="text-xl font-semibold mb-4">🍕 Pizzas à préparer</h2>
+          <ul className="space-y-4">
+            {Object.entries(groupAndSortPizzas(commandesParStatut('preparation'))).map(
+              ([name, { total, commandes }]) => {
+                const key = `${name}-${commandes.map((c) => c.id).join('-')}`;
+                return (
+                  <li key={key} className="border p-3 rounded shadow bg-white">
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={pizzasCochees.includes(key)}
+                        onChange={() => togglePizza(key)}
+                        className="mt-1"
+                      />
+                      <div>
+                        <div className="font-semibold">{total} × {name}</div>
+                        <div className="text-xs text-gray-600">
+                          {commandes.map((c) => `#${c.id} – ${c.client}`).join(', ')}
+                        </div>
+                      </div>
+                    </label>
+                  </li>
+                );
+              }
+            )}
+          </ul>
+        </section>
       ) : (
         <>
-          <section className="space-y-4">
-            <h2 className="text-xl font-semibold mb-2">🟠 Confirmées / Payées</h2>
+          <section>
+            <h2 className="text-xl font-semibold mb-2">🟠 Confirmées</h2>
             <div className="flex flex-wrap gap-4">
               {commandesParStatut('processing').map((cmd) => (
-                <CommandeCard
-                  key={cmd.id}
-                  commande={cmd}
-                  onUpdate={updateCommande}
-                  onPrint={imprimerCommande}
-                  className="animate-fade-in transition-transform duration-500 min-h-[400px]"
-                />
+                <CommandeCard key={cmd.id} commande={cmd} onUpdate={updateCommande} />
               ))}
             </div>
           </section>
-
-          <section className="space-y-4 border-t border-gray-300 pt-6 mt-6">
+          <section className="border-t border-gray-300 pt-6 mt-6">
             <h2 className="text-xl font-semibold mb-2">🧑‍🍳 En préparation</h2>
             <div className="flex flex-wrap gap-4">
               {commandesParStatut('preparation').map((cmd) => (
-                <CommandeCard
-                  key={cmd.id}
-                  commande={cmd}
-                  onUpdate={updateCommande}
-                  onPrint={imprimerCommande}
-                  className="animate-fade-in transition-transform duration-500 min-h-[400px]"
-                />
+                <CommandeCard key={cmd.id} commande={cmd} onUpdate={updateCommande} />
               ))}
             </div>
           </section>
