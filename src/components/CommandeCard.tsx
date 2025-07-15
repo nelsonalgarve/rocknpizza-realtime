@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 interface LineItem {
   name: string;
   quantity: number;
@@ -34,6 +36,31 @@ export default function CommandeCard({ commande, onUpdate, onPrint, className }:
 
   const formattedDate = new Date(commande.date_created).toLocaleString('fr-FR');
 
+  const key = `commande-pizzas-${commande.id}`;
+  const [pizzasCochees, setPizzasCochees] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          setPizzasCochees(JSON.parse(saved));
+        } catch {
+          setPizzasCochees({});
+        }
+      }
+    }
+  }, [key]);
+
+  const togglePizza = (name: string) => {
+    const updated = {
+      ...pizzasCochees,
+      [name]: !pizzasCochees[name],
+    };
+    setPizzasCochees(updated);
+    localStorage.setItem(key, JSON.stringify(updated));
+  };
+
   return (
     <div
       className={`bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 shadow-lg border border-gray-200 dark:border-gray-600 w-full sm:w-[48%] lg:w-[32%] flex flex-col justify-between h-full transition-all duration-500 ease-in-out ${className}`}
@@ -66,16 +93,36 @@ export default function CommandeCard({ commande, onUpdate, onPrint, className }:
         </div>
 
         <div className="divide-y divide-gray-200 text-base text-gray-700 dark:text-gray-300">
-          {commande.line_items.map((item, idx) => (
-            <div key={idx} className="py-2 flex justify-between">
-              <span>
-                <strong>{item.quantity}×</strong> {item.name}
-              </span>
-              <span className="font-semibold text-gray-800 dark:text-white">
-                {totalTTC(item)} €
-              </span>
-            </div>
-          ))}
+          {commande.line_items.map((item, idx) => {
+            const name = `${item.quantity}× ${item.name}`;
+            return commande.status === 'preparation' ? (
+              <label key={idx} className="py-2 flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="accent-green-600"
+                  checked={!!pizzasCochees[name]}
+                  onChange={() => togglePizza(name)}
+                />
+                <div className="flex justify-between w-full">
+                  <span className={pizzasCochees[name] ? 'line-through text-gray-400' : ''}>
+                    {name}
+                  </span>
+                  <span className="font-semibold text-gray-800 dark:text-white">
+                    {totalTTC(item)} €
+                  </span>
+                </div>
+              </label>
+            ) : (
+              <div key={idx} className="py-2 flex justify-between">
+                <span>
+                  <strong>{item.quantity}×</strong> {item.name}
+                </span>
+                <span className="font-semibold text-gray-800 dark:text-white">
+                  {totalTTC(item)} €
+                </span>
+              </div>
+            );
+          })}
         </div>
 
         <div className="flex justify-between items-center text-sm text-gray-600 border-t pt-3 mt-3">
