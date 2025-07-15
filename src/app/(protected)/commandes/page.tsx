@@ -2,8 +2,6 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-
 import CommandeCard from '@/components/CommandeCard';
 import toast from 'react-hot-toast';
 import dayjs from 'dayjs';
@@ -32,13 +30,6 @@ interface Commande {
 type CommandeCache = { id: number; status: string };
 
 export default function CommandesPage() {
-  const router = useRouter();
-
-useEffect(() => {
-  if (localStorage.getItem('authenticated') !== 'true') {
-    router.push('/login');
-  }
-}, [router]);
   const [commandes, setCommandes] = useState<Commande[]>([]);
   const [commandesTerminees, setCommandesTerminees] = useState<Commande[]>([]);
   const [loading, setLoading] = useState(true);
@@ -215,162 +206,143 @@ useEffect(() => {
   );
 
   return (
-    <div className="p-4">
-      <div className="absolute top-4 right-4">
-  <button
-    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded shadow"
-    onClick={() => {
-      localStorage.removeItem('authenticated');
-      router.push('/login');
-    }}
-  >
-    Se déconnecter
-  </button>
-</div>
-
+    <div className="p-4 space-y-12">
       <audio ref={audioRef} src="/ding.mp3" preload="auto" />
 
       <h1 className="text-2xl font-bold mb-4">📦 Commandes</h1>
 
       {/* Boutons et filtres */}
-<div className="flex flex-wrap gap-2 mb-6 items-center">
-  <button
-    className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded shadow transition duration-200"
-    onClick={() => setAfficherTerminees(false)}
-  >
-    Voir commandes actives
-  </button>
-  <button
-    className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded shadow transition duration-200"
-    onClick={() => setAfficherTerminees(true)}
-  >
-    Voir terminées
-  </button>
-  <button
-    className={`${sonActif ? 'bg-green-600' : 'bg-red-600'} text-white px-4 py-2 rounded shadow transition duration-200`}
-    onClick={() => {
-  if (sonActif) {
-    desactiverSon();
-  } else {
-    activerSon();
-  }
-}}
+      <div className="flex flex-wrap gap-2 mb-6 items-center">
+        <button
+          className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded shadow transition duration-200"
+          onClick={() => setAfficherTerminees(false)}
+        >
+          Voir commandes actives
+        </button>
+        <button
+          className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded shadow transition duration-200"
+          onClick={() => setAfficherTerminees(true)}
+        >
+          Voir terminées
+        </button>
+        <button
+          className={`${sonActif ? 'bg-green-600' : 'bg-red-600'} text-white px-4 py-2 rounded shadow transition duration-200`}
+          onClick={() => {
+            if (sonActif) {
+              desactiverSon();
+            } else {
+              activerSon();
+            }
+          }}
+        >
+          🔔 Notifications {sonActif ? 'activées' : 'désactivées'}
+        </button>
+        {sonActif && (
+          <span className="text-sm text-gray-700">
+            Prochaine alerte dans {nextNotifIn}s
+          </span>
+        )}
+      </div>
 
-  >
-    🔔 Notifications {sonActif ? 'activées' : 'désactivées'}
-  </button>
-  {sonActif && (
-    <span className="text-sm text-gray-700">
-      Prochaine alerte dans {nextNotifIn}s
-    </span>
-  )}
-</div>
-
-{afficherTerminees && (
-  <div className="mb-4">
-    <label className="text-sm mr-2 font-medium text-gray-700">Filtrer par date :</label>
-    <input
-      type="date"
-      value={filtreDate}
-      onChange={(e) => setFiltreDate(e.target.value)}
-      className="border px-3 py-1 rounded shadow-sm text-sm"
-    />
-    <button
-      className="ml-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded shadow"
-      onClick={() => {
-        const commandesDuJour = commandesTermineesFiltrees;
-
-        import('jspdf').then(async ({ jsPDF }) => {
-          const autoTable = (await import('jspdf-autotable')).default;
-          const doc = new jsPDF();
-
-          const logo = new Image();
-          logo.src = '/logo.png';
-
-          logo.onload = () => {
-            doc.addImage(logo, 'PNG', 10, 10, 30, 30);
-            doc.setFontSize(16);
-            doc.text(`Commandes du ${filtreDate}`, 50, 20);
-
-            const rows = commandesDuJour.map((cmd) => [
-              cmd.id,
-              `${cmd.billing.first_name} ${cmd.billing.last_name}`,
-              dayjs(cmd.date_created).format('HH:mm'),
-              `${cmd.total} €`,
-              cmd.line_items.map((i) => `${i.quantity}× ${i.name}`).join(', ')
-            ]);
-
-            autoTable(doc, {
-              startY: 50,
-              head: [['ID', 'Client', 'Heure', 'Total', 'Produits']],
-              body: rows,
-              styles: { fontSize: 10, cellPadding: 3 },
-              headStyles: { fillColor: [60, 60, 60] },
-            });
-
-            doc.save(`commandes_${filtreDate}.pdf`);
-          };
-        });
-      }}
-    >
-      📄 Export PDF du jour
-    </button>
-  </div>
-)}
-
-{loading ? (
-  <p>Chargement...</p>
-) : afficherTerminees ? (
-  <div>
-    <h2 className="text-xl font-semibold mb-2">✅ Terminées ({filtreDate})</h2>
-    <div className="flex flex-wrap gap-4">
-      {commandesTermineesFiltrees.map((cmd) => (
-        <CommandeCard
-          key={cmd.id}
-          commande={cmd}
-          onUpdate={updateCommande}
-          onPrint={imprimerCommande}
-          className="animate-fade-in transition-transform duration-500"
-        />
-      ))}
-      {commandesTermineesFiltrees.length === 0 && (
-        <p className="text-gray-500 italic">Aucune commande terminée pour cette date.</p>
+      {afficherTerminees && (
+        <div className="mb-4">
+          <label className="text-sm mr-2 font-medium text-gray-700">Filtrer par date :</label>
+          <input
+            type="date"
+            value={filtreDate}
+            onChange={(e) => setFiltreDate(e.target.value)}
+            className="border px-3 py-1 rounded shadow-sm text-sm"
+          />
+          <button
+            className="ml-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded shadow"
+            onClick={() => {
+              const commandesDuJour = commandesTermineesFiltrees;
+              import('jspdf').then(async ({ jsPDF }) => {
+                const autoTable = (await import('jspdf-autotable')).default;
+                const doc = new jsPDF();
+                const logo = new Image();
+                logo.src = '/logo.png';
+                logo.onload = () => {
+                  doc.addImage(logo, 'PNG', 10, 10, 30, 30);
+                  doc.setFontSize(16);
+                  doc.text(`Commandes du ${filtreDate}`, 50, 20);
+                  const rows = commandesDuJour.map((cmd) => [
+                    cmd.id,
+                    `${cmd.billing.first_name} ${cmd.billing.last_name}`,
+                    dayjs(cmd.date_created).format('HH:mm'),
+                    `${cmd.total} €`,
+                    cmd.line_items.map((i) => `${i.quantity}× ${i.name}`).join(', ')
+                  ]);
+                  autoTable(doc, {
+                    startY: 50,
+                    head: [['ID', 'Client', 'Heure', 'Total', 'Produits']],
+                    body: rows,
+                    styles: { fontSize: 10, cellPadding: 3 },
+                    headStyles: { fillColor: [60, 60, 60] },
+                  });
+                  doc.save(`commandes_${filtreDate}.pdf`);
+                };
+              });
+            }}
+          >
+            📄 Export PDF du jour
+          </button>
+        </div>
       )}
-    </div>
-  </div>
-) : (
-  <>
-    <div className="mb-6">
-      <h2 className="text-xl font-semibold mb-2">🟠 Confirmées / Payées</h2>
-      <div className="flex flex-wrap gap-4">
-        {commandesParStatut('processing').map((cmd) => (
-          <CommandeCard
-            key={cmd.id}
-            commande={cmd}
-            onUpdate={updateCommande}
-            onPrint={imprimerCommande}
-            className="animate-fade-in transition-transform duration-500"
-          />
-        ))}
-      </div>
-    </div>
 
-    <div>
-      <h2 className="text-xl font-semibold mb-2">🧑‍🍳 En préparation</h2>
-      <div className="flex flex-wrap gap-4">
-        {commandesParStatut('preparation').map((cmd) => (
-          <CommandeCard
-            key={cmd.id}
-            commande={cmd}
-            onUpdate={updateCommande}
-            onPrint={imprimerCommande}
-            className="animate-fade-in transition-transform duration-500"
-          />
-        ))}
-      </div>
-    </div>
-  </>
-)}
+      {loading ? (
+        <p>Chargement...</p>
+      ) : afficherTerminees ? (
+        <div>
+          <h2 className="text-xl font-semibold mb-2">✅ Terminées ({filtreDate})</h2>
+          <div className="flex flex-wrap gap-4">
+            {commandesTermineesFiltrees.map((cmd) => (
+              <CommandeCard
+                key={cmd.id}
+                commande={cmd}
+                onUpdate={updateCommande}
+                onPrint={imprimerCommande}
+                className="animate-fade-in transition-transform duration-500 min-h-[400px]"
+              />
+            ))}
+            {commandesTermineesFiltrees.length === 0 && (
+              <p className="text-gray-500 italic">Aucune commande terminée pour cette date.</p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          <section className="space-y-4">
+            <h2 className="text-xl font-semibold mb-2">🟠 Confirmées / Payées</h2>
+            <div className="flex flex-wrap gap-4">
+              {commandesParStatut('processing').map((cmd) => (
+                <CommandeCard
+                  key={cmd.id}
+                  commande={cmd}
+                  onUpdate={updateCommande}
+                  onPrint={imprimerCommande}
+                  className="animate-fade-in transition-transform duration-500 min-h-[400px]"
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-4 border-t border-gray-300 pt-6 mt-6">
+            <h2 className="text-xl font-semibold mb-2">🧑‍🍳 En préparation</h2>
+            <div className="flex flex-wrap gap-4">
+              {commandesParStatut('preparation').map((cmd) => (
+                <CommandeCard
+                  key={cmd.id}
+                  commande={cmd}
+                  onUpdate={updateCommande}
+                  onPrint={imprimerCommande}
+                  className="animate-fade-in transition-transform duration-500 min-h-[400px]"
+                />
+              ))}
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }

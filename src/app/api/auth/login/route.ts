@@ -1,14 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server';
+// src/app/api/auth/login/route.ts
+import { NextResponse } from 'next/server'
 
-export async function POST(req: NextRequest) {
-  const { username, password } = await req.json();
+export async function POST(req: Request) {
+  const body = await req.json()
+  const { username, password } = body
 
-  const user = process.env.LOGIN_USER;
-  const pass = process.env.LOGIN_PASSWORD;
-
-  if (username === user && password === pass) {
-    return NextResponse.json({ success: true });
+  if (
+    username === process.env.LOGIN_USER &&
+    password === process.env.LOGIN_PASSWORD
+  ) {
+    return NextResponse.json({ success: true })
   }
 
-  return NextResponse.json({ success: false }, { status: 401 });
+  return NextResponse.json({ success: false }, { status: 401 })
 }

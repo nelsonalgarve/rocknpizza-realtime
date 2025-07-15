@@ -1,4 +1,5 @@
 'use client';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -11,8 +12,8 @@ export default function LoginPage() {
   const handleLogin = async () => {
     const res = await fetch('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ username, password }),
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
     });
 
     if (res.ok) {
