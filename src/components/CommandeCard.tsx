@@ -24,7 +24,7 @@ interface Commande {
 interface Props {
   commande: Commande;
   onUpdate: (id: number, updateData: Record<string, string>) => void;
-  onPrint: (commande: Commande) => void;
+  onPrint?: (commande: Commande) => void;
   className?: string;
 }
 
@@ -112,7 +112,7 @@ export default function CommandeCard({ commande, onUpdate, onPrint, className }:
         )}
         <button
           className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg shadow-md transition transform active:scale-95"
-          onClick={() => onPrint(commande)}
+          onClick={() => onPrint && onPrint(commande)}
         >
           🖨️ Imprimer
         </button>
