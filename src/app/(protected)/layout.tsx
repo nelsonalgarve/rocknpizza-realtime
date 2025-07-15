@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { PizzasCocheesProvider } from '@/contexts/PizzasCocheesProvider'; // ajuste le chemin si besoin
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -13,19 +14,21 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   }, [router]);
 
   return (
-    <div className="relative min-h-screen">
-      <div className="absolute top-4 right-4">
-        <button
-          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded shadow"
-          onClick={() => {
-            localStorage.removeItem('authenticated');
-            router.push('/login');
-          }}
-        >
-          Se déconnecter
-        </button>
+    <PizzasCocheesProvider>
+      <div className="relative min-h-screen">
+        <div className="absolute top-4 right-4">
+          <button
+            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded shadow"
+            onClick={() => {
+              localStorage.removeItem('authenticated');
+              router.push('/login');
+            }}
+          >
+            Se déconnecter
+          </button>
+        </div>
+        {children}
       </div>
-      {children}
-    </div>
+    </PizzasCocheesProvider>
   );
 }

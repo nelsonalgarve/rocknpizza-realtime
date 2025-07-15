@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import CommandeCard from '@/components/CommandeCard';
 import toast from 'react-hot-toast';
 import dayjs from 'dayjs';
+import { usePizzasCochees } from '@/contexts/PizzasCocheesProvider';
 
 interface LineItem {
   name: string;
@@ -28,60 +29,19 @@ interface Commande {
 
 type CommandeCache = { id: number; status: string };
 
-type PizzaGroup = {
-  total: number;
-  commandes: { id: number; client: string }[];
-};
-
-function groupAndSortPizzas(commandes: Commande[]): Record<string, PizzaGroup> {
-  const result: Record<string, PizzaGroup> = {};
-
-  commandes.forEach((commande) => {
-    const client = `${commande.billing.first_name} ${commande.billing.last_name}`;
-    commande.line_items.forEach((item) => {
-      if (!result[item.name]) {
-        result[item.name] = { total: 0, commandes: [] };
-      }
-      result[item.name].total += item.quantity;
-      result[item.name].commandes.push({ id: commande.id, client });
-    });
-  });
-
-  return Object.keys(result)
-    .sort((a, b) => a.localeCompare(b))
-    .reduce((acc, key) => {
-      acc[key] = result[key];
-      return acc;
-    }, {} as Record<string, PizzaGroup>);
-}
-
 export default function CommandesPage() {
   const [commandes, setCommandes] = useState<Commande[]>([]);
   const [commandesTerminees, setCommandesTerminees] = useState<Commande[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [ongletActif, setOngletActif] = useState<'actives' | 'terminees' | 'pizzas'>('actives');
-  const [filtreDate, setFiltreDate] = useState(() => dayjs().format('YYYY-MM-DD'));
+  // const [loading, setLoading] = useState(true);
+  const [filtreDate, setFiltreDate] = useState<string>(() => dayjs().format('YYYY-MM-DD'));
   const [sonActif, setSonActif] = useState(false);
-  const [pizzasCochees, setPizzasCochees] = useState<string[]>([]);
   const [nextNotifIn, setNextNotifIn] = useState(15);
+  const [ongletActif, setOngletActif] = useState<'actives' | 'terminees' | 'pizzas'>('actives');
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const sonIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setSonActif(localStorage.getItem('son-actif') === 'true');
-      const saved = localStorage.getItem('pizzas-cochees');
-      if (saved) {
-        try {
-          setPizzasCochees(JSON.parse(saved));
-        } catch {
-          setPizzasCochees([]);
-        }
-      }
-    }
-  }, []);
+  const { getPizzaChecked, togglePizzaChecked } = usePizzasCochees();
 
   const playNotification = useCallback(async () => {
     const audio = audioRef.current;
@@ -128,7 +88,9 @@ export default function CommandesPage() {
     setSonActif(true);
     localStorage.setItem('son-actif', 'true');
     const commandesEnCours = commandes.filter((cmd) => cmd.status === 'processing');
-    if (commandesEnCours.length > 0) startSoundLoop();
+    if (commandesEnCours.length > 0) {
+      startSoundLoop();
+    }
   };
 
   const desactiverSon = () => {
@@ -137,10 +99,18 @@ export default function CommandesPage() {
     stopSoundLoop();
   };
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const son = localStorage.getItem('son-actif');
+      setSonActif(son === 'true');
+    }
+  }, []);
+
   const fetchCommandes = useCallback(async () => {
     try {
       const res = await fetch('/api/commandes?status=processing,preparation');
       const data: Commande[] = await res.json();
+
       const cached = localStorage.getItem('commandes-cache');
       const currentStatus = data.map(({ id, status }) => ({ id, status }));
       const currentProcessing = data.filter((cmd) => cmd.status === 'processing');
@@ -160,15 +130,18 @@ export default function CommandesPage() {
         toast.success('📦 Nouvelle commande reçue');
       }
 
-      if (hasProcessing && sonActif) startSoundLoop();
-      else stopSoundLoop();
+      if (hasProcessing && sonActif) {
+        startSoundLoop();
+      } else {
+        stopSoundLoop();
+      }
 
       localStorage.setItem('commandes-cache', JSON.stringify(currentStatus));
       setCommandes(data);
     } catch (error) {
       console.error('Erreur chargement commandes:', error);
     } finally {
-      setLoading(false);
+      // setLoading(false);
     }
   }, [playNotification, sonActif, startSoundLoop, stopSoundLoop]);
 
@@ -184,12 +157,24 @@ export default function CommandesPage() {
 
   const updateCommande = async (id: number, updateData: Record<string, string>) => {
     try {
-      await fetch(`/api/commandes/${id}`, {
+      const res = await fetch(`/api/commandes/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateData),
       });
 
+      if (!res.ok) {
+        console.error('Échec de la mise à jour:', await res.text());
+        return;
+      }
+
+      const updatedCommande = commandes.find((cmd) => cmd.id === id);
+      const client = updatedCommande ? `${updatedCommande.billing.first_name} ${updatedCommande.billing.last_name}` : 'Client inconnu';
+      const nouveauStatut = updateData.status;
+
+      const statutLisible = nouveauStatut === 'processing' ? '🟠 Confirmée' : nouveauStatut === 'preparation' ? '🧑‍🍳 En préparation' : nouveauStatut === 'completed' ? '✅ Terminée' : nouveauStatut;
+
+      toast.success(`✅ Statut mis à jour pour ${client} → ${statutLisible}`);
       await fetchCommandes();
       await fetchCommandesTerminees();
     } catch (err) {
@@ -197,12 +182,8 @@ export default function CommandesPage() {
     }
   };
 
-  const commandesParStatut = (statut: string) =>
-    commandes.filter((cmd) => cmd.status === statut);
-
-  const commandesTermineesFiltrees = commandesTerminees.filter((cmd) =>
-    dayjs(cmd.date_created).format('YYYY-MM-DD') === filtreDate
-  );
+  const commandesParStatut = (statut: string, source: Commande[] = commandes) =>
+    source.filter((cmd) => cmd.status === statut);
 
   useEffect(() => {
     fetchCommandes();
@@ -217,86 +198,71 @@ export default function CommandesPage() {
     };
   }, [fetchCommandes, stopSoundLoop]);
 
-  const togglePizza = (key: string) => {
-    setPizzasCochees((prev) => {
-      const updated = prev.includes(key)
-        ? prev.filter((k) => k !== key)
-        : [...prev, key];
-      localStorage.setItem('pizzas-cochees', JSON.stringify(updated));
-      return updated;
-    });
-  };
+  const commandesTermineesFiltrees = commandesTerminees.filter((cmd) =>
+    dayjs(cmd.date_created).format('YYYY-MM-DD') === filtreDate
+  );
 
   return (
     <div className="p-4 space-y-12">
       <audio ref={audioRef} src="/ding.mp3" preload="auto" />
+
       <h1 className="text-2xl font-bold mb-4">📦 Commandes</h1>
 
-      {/* Onglets */}
       <div className="flex flex-wrap gap-2 mb-6 items-center">
-        <button onClick={() => setOngletActif('actives')} className="bg-orange-500 text-white px-4 py-2 rounded">Commandes actives</button>
-        <button onClick={() => setOngletActif('terminees')} className="bg-gray-700 text-white px-4 py-2 rounded">Commandes terminées</button>
-        <button onClick={() => setOngletActif('pizzas')} className="bg-pink-600 text-white px-4 py-2 rounded">Pizzas à préparer</button>
-        <button onClick={() => (sonActif ? desactiverSon() : activerSon())}
-          className={`${sonActif ? 'bg-green-600' : 'bg-red-600'} text-white px-4 py-2 rounded`}
+        <button
+          className={`${
+            ongletActif === 'actives' ? 'bg-orange-600' : 'bg-orange-500'
+          } text-white px-4 py-2 rounded shadow`}
+          onClick={() => setOngletActif('actives')}
+        >
+          Voir commandes actives
+        </button>
+        <button
+          className={`${
+            ongletActif === 'terminees' ? 'bg-gray-800' : 'bg-gray-700'
+          } text-white px-4 py-2 rounded shadow`}
+          onClick={() => setOngletActif('terminees')}
+        >
+          Voir terminées
+        </button>
+        <button
+          className={`${
+            ongletActif === 'pizzas' ? 'bg-yellow-600' : 'bg-yellow-500'
+          } text-white px-4 py-2 rounded shadow`}
+          onClick={() => setOngletActif('pizzas')}
+        >
+          Voir pizzas à préparer
+        </button>
+        <button
+          className={`${sonActif ? 'bg-green-600' : 'bg-red-600'} text-white px-4 py-2 rounded shadow transition duration-200`}
+          onClick={() => {
+            if (sonActif) {
+              desactiverSon();
+            } else {
+              activerSon();
+            }
+          }}
         >
           🔔 Notifications {sonActif ? 'activées' : 'désactivées'}
         </button>
-        {sonActif && <span className="text-sm text-gray-700">Prochaine alerte dans {nextNotifIn}s</span>}
+        {sonActif && (
+          <span className="text-sm text-gray-700">
+            Prochaine alerte dans {nextNotifIn}s
+          </span>
+        )}
       </div>
 
-      {/* Contenu par onglet */}
-      {loading ? (
-        <p>Chargement...</p>
-      ) : ongletActif === 'terminees' ? (
-        <div>
-          <h2 className="text-xl font-semibold mb-2">✅ Terminées</h2>
-          <input type="date" value={filtreDate} onChange={(e) => setFiltreDate(e.target.value)} className="border px-2 py-1" />
-          <div className="mt-4 flex flex-wrap gap-4">
-            {commandesTermineesFiltrees.map((cmd) => (
-              <CommandeCard key={cmd.id} commande={cmd} onUpdate={updateCommande} />
-            ))}
-          </div>
-        </div>
-      ) : ongletActif === 'pizzas' ? (
-        <section>
-          <h2 className="text-xl font-semibold mb-4">🍕 Pizzas à préparer</h2>
-          <ul className="space-y-4">
-            {Object.entries(groupAndSortPizzas(commandesParStatut('preparation'))).map(
-              ([name, { total, commandes }]) => {
-                const key = `${name}-${commandes.map((c) => c.id).join('-')}`;
-                return (
-                  <li key={key} className="border p-3 rounded shadow bg-white">
-                    <label className="flex items-start gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={pizzasCochees.includes(key)}
-                        onChange={() => togglePizza(key)}
-                        className="mt-1"
-                      />
-                      <div>
-                        <div className="font-semibold">{total} × {name}</div>
-                        <div className="text-xs text-gray-600">
-                          {commandes.map((c) => `#${c.id} – ${c.client}`).join(', ')}
-                        </div>
-                      </div>
-                    </label>
-                  </li>
-                );
-              }
-            )}
-          </ul>
-        </section>
-      ) : (
+      {ongletActif === 'actives' && (
         <>
           <section>
-            <h2 className="text-xl font-semibold mb-2">🟠 Confirmées</h2>
+            <h2 className="text-xl font-semibold mb-2">🟠 Confirmées / Payées</h2>
             <div className="flex flex-wrap gap-4">
               {commandesParStatut('processing').map((cmd) => (
                 <CommandeCard key={cmd.id} commande={cmd} onUpdate={updateCommande} />
               ))}
             </div>
           </section>
+
           <section className="border-t border-gray-300 pt-6 mt-6">
             <h2 className="text-xl font-semibold mb-2">🧑‍🍳 En préparation</h2>
             <div className="flex flex-wrap gap-4">
@@ -306,6 +272,72 @@ export default function CommandesPage() {
             </div>
           </section>
         </>
+      )}
+
+      {ongletActif === 'terminees' && (
+        <>
+          <div className="mb-4">
+            <label className="text-sm mr-2 font-medium text-gray-700">Filtrer par date :</label>
+            <input
+              type="date"
+              value={filtreDate}
+              onChange={(e) => setFiltreDate(e.target.value)}
+              className="border px-3 py-1 rounded shadow-sm text-sm"
+            />
+          </div>
+          <section>
+            <h2 className="text-xl font-semibold mb-2">✅ Terminées ({filtreDate})</h2>
+            <div className="flex flex-wrap gap-4">
+              {commandesTermineesFiltrees.map((cmd) => (
+                <CommandeCard key={cmd.id} commande={cmd} onUpdate={updateCommande} />
+              ))}
+            </div>
+          </section>
+        </>
+      )}
+
+      {ongletActif === 'pizzas' && (
+        <section>
+          <h2 className="text-xl font-semibold mb-4">🍕 Pizzas à préparer</h2>
+          <ul className="space-y-4">
+            {commandesParStatut('preparation')
+              .flatMap((commande) =>
+                commande.line_items.map((item, idx) => {
+                  const name = `${item.quantity}× ${item.name}`;
+                  const checked = getPizzaChecked(commande.id, name);
+                  return {
+                    key: `${commande.id}-${idx}`,
+                    name,
+                    commandeId: commande.id,
+                    client: `${commande.billing.first_name} ${commande.billing.last_name}`,
+                    checked,
+                  };
+                })
+              )
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((pizza) => (
+                <li
+                  key={pizza.key}
+                  className="border p-3 rounded shadow bg-white flex items-start gap-2"
+                >
+                  <input
+                    type="checkbox"
+                    className="accent-green-600 mt-1"
+                    checked={pizza.checked}
+                    onChange={() => togglePizzaChecked(pizza.commandeId, pizza.name)}
+                  />
+                  <div>
+                    <div className={pizza.checked ? 'line-through text-gray-400' : ''}>
+                      {pizza.name}
+                    </div>
+                    <div className="text-xs text-gray-600">
+                      Commande #{pizza.commandeId} – {pizza.client}
+                    </div>
+                  </div>
+                </li>
+              ))}
+          </ul>
+        </section>
       )}
     </div>
   );

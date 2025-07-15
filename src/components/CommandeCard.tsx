@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import {  useState } from 'react';
+import { usePizzasCochees } from '@/contexts/PizzasCocheesProvider'; // chemin à ajuster si besoin
 
 interface LineItem {
   name: string;
@@ -35,30 +36,24 @@ export default function CommandeCard({ commande, onUpdate, onPrint, className }:
     (parseFloat(item.total) + parseFloat(item.total_tax)).toFixed(2);
 
   const formattedDate = new Date(commande.date_created).toLocaleString('fr-FR');
+  const [showWarning, setShowWarning] = useState(false);
 
-  const key = `commande-pizzas-${commande.id}`;
-  const [pizzasCochees, setPizzasCochees] = useState<Record<string, boolean>>({});
+  const { getPizzaChecked, togglePizzaChecked } = usePizzasCochees();
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        try {
-          setPizzasCochees(JSON.parse(saved));
-        } catch {
-          setPizzasCochees({});
-        }
-      }
+  const toutesCochees = commande.status !== 'preparation'
+    ? true
+    : commande.line_items.every((item) => {
+        const name = `${item.quantity}× ${item.name}`;
+        return getPizzaChecked(commande.id, name);
+      });
+
+  const handleMarquerTerminee = () => {
+    if (!toutesCochees) {
+      setShowWarning(true);
+      setTimeout(() => setShowWarning(false), 3000);
+      return;
     }
-  }, [key]);
-
-  const togglePizza = (name: string) => {
-    const updated = {
-      ...pizzasCochees,
-      [name]: !pizzasCochees[name],
-    };
-    setPizzasCochees(updated);
-    localStorage.setItem(key, JSON.stringify(updated));
+    onUpdate(commande.id, { status: 'completed' });
   };
 
   return (
@@ -100,11 +95,17 @@ export default function CommandeCard({ commande, onUpdate, onPrint, className }:
                 <input
                   type="checkbox"
                   className="accent-green-600"
-                  checked={!!pizzasCochees[name]}
-                  onChange={() => togglePizza(name)}
+                  checked={getPizzaChecked(commande.id, name)}
+                  onChange={() => togglePizzaChecked(commande.id, name)}
                 />
                 <div className="flex justify-between w-full">
-                  <span className={pizzasCochees[name] ? 'line-through text-gray-400' : ''}>
+                  <span
+                    className={
+                      getPizzaChecked(commande.id, name)
+                        ? 'line-through text-gray-400'
+                        : ''
+                    }
+                  >
                     {name}
                   </span>
                   <span className="font-semibold text-gray-800 dark:text-white">
@@ -130,6 +131,10 @@ export default function CommandeCard({ commande, onUpdate, onPrint, className }:
             Total : {commande.total} €
           </span>
         </div>
+
+        {showWarning && (
+          <p className="text-red-600 text-sm mt-2">⚠️ Veuillez cocher toutes les pizzas avant de valider.</p>
+        )}
       </div>
 
       <div className="mt-4 pt-2 flex flex-wrap gap-2 justify-end">
@@ -143,8 +148,13 @@ export default function CommandeCard({ commande, onUpdate, onPrint, className }:
         )}
         {commande.status === 'preparation' && (
           <button
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-lg shadow-md transition transform active:scale-95"
-            onClick={() => onUpdate(commande.id, { status: 'completed' })}
+            disabled={!toutesCochees}
+            className={`${
+              toutesCochees
+                ? 'bg-green-600 hover:bg-green-700'
+                : 'bg-gray-300 cursor-not-allowed'
+            } text-white px-4 py-1.5 rounded-lg shadow-md transition transform active:scale-95`}
+            onClick={handleMarquerTerminee}
           >
             ✅ Marquer comme terminée
           </button>
