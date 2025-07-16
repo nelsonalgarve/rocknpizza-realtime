@@ -1,7 +1,7 @@
 'use client';
 
-import {  useState } from 'react';
-import { usePizzasCochees } from '@/contexts/PizzasCocheesProvider'; // chemin à ajuster si besoin
+import { useState } from 'react';
+import { usePizzasCochees } from '@/contexts/PizzasCocheesProvider';
 
 interface LineItem {
   name: string;
@@ -31,13 +31,12 @@ interface Props {
   className?: string;
 }
 
-export default function CommandeCard({ commande, onUpdate, onPrint, className }: Props) {
+export default function CommandeCard({ commande, onUpdate, className }: Props) {
   const totalTTC = (item: LineItem) =>
     (parseFloat(item.total) + parseFloat(item.total_tax)).toFixed(2);
 
   const formattedDate = new Date(commande.date_created).toLocaleString('fr-FR');
   const [showWarning, setShowWarning] = useState(false);
-
   const { getPizzaChecked, togglePizzaChecked } = usePizzasCochees();
 
   const toutesCochees = commande.status !== 'preparation'
@@ -55,6 +54,91 @@ export default function CommandeCard({ commande, onUpdate, onPrint, className }:
     }
     onUpdate(commande.id, { status: 'completed' });
   };
+
+ const imprimerTicket = (commande: Commande) => {
+  const win = window.open('', '_blank');
+  if (!win) return;
+
+  const contenu = `
+    <html>
+      <head>
+        <title>Ticket commande #${commande.id}</title>
+        <style>
+          * {
+            font-family: monospace;
+            font-size: 12px;
+            margin: 0;
+            padding: 0;
+            color: #000;
+          }
+          body {
+            padding: 10px;
+            width: 280px;
+          }
+          h2 {
+            text-align: center;
+            margin-bottom: 10px;
+          }
+          .separator {
+            border-top: 1px dashed #000;
+            margin: 8px 0;
+          }
+          .line {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+          }
+          .bold {
+            font-weight: bold;
+          }
+          .total {
+            margin-top: 10px;
+            font-weight: bold;
+            font-size: 14px;
+            text-align: right;
+          }
+          .footer {
+            text-align: center;
+            margin-top: 12px;
+            font-size: 11px;
+          }
+        </style>
+      </head>
+      <body>
+        <h2>ROCK'N PIZZA</h2>
+        <div class="separator"></div>
+        <div>Commande #${commande.id}</div>
+        <div>${new Date(commande.date_created).toLocaleString('fr-FR')}</div>
+        <div class="separator"></div>
+        <div>Client: ${commande.billing.first_name} ${commande.billing.last_name}</div>
+        <div>Tél: ${commande.billing.phone}</div>
+        <div>Email: ${commande.billing.email}</div>
+        <div class="separator"></div>
+        ${commande.line_items.map(
+          (item) => `
+            <div class="line">
+              <span>${item.quantity}× ${item.name}</span>
+              <span>${totalTTC(item)} €</span>
+            </div>`
+        ).join('')}
+        <div class="separator"></div>
+        <div class="total">Total TTC : ${commande.total} €</div>
+        <div class="footer">Merci pour votre commande !</div>
+
+        <script>
+          window.onload = () => {
+            window.print();
+            window.onafterprint = () => window.close();
+          };
+        </script>
+      </body>
+    </html>
+  `;
+
+  win.document.open();
+  win.document.write(contenu);
+  win.document.close();
+};
 
   return (
     <div
@@ -99,13 +183,7 @@ export default function CommandeCard({ commande, onUpdate, onPrint, className }:
                   onChange={() => togglePizzaChecked(commande.id, name)}
                 />
                 <div className="flex justify-between w-full">
-                  <span
-                    className={
-                      getPizzaChecked(commande.id, name)
-                        ? 'line-through text-gray-400'
-                        : ''
-                    }
-                  >
+                  <span className={getPizzaChecked(commande.id, name) ? 'line-through text-gray-400' : ''}>
                     {name}
                   </span>
                   <span className="font-semibold text-gray-800 dark:text-white">
@@ -169,7 +247,7 @@ export default function CommandeCard({ commande, onUpdate, onPrint, className }:
         )}
         <button
           className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg shadow-md transition transform active:scale-95"
-          onClick={() => onPrint && onPrint(commande)}
+          onClick={() => imprimerTicket(commande)}
         >
           🖨️ Imprimer
         </button>
