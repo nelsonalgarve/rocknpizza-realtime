@@ -31,7 +31,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
             className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded shadow"
             onClick={async () => {
             await fetch('/api/logout', { method: 'POST' });
-            window.location.href = '/login';
+            window.location.href = '/';
             }}>
            Se déconnecter
           </button>
