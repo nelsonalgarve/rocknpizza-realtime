@@ -11,7 +11,7 @@ export function middleware(request: NextRequest) {
 
   // Si l'utilisateur n'est pas authentifié et tente d'accéder à une page protégée
   if (!isLoggedIn && !isLoginPage && !isRootPage) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    return NextResponse.redirect(new URL('/', request.url));
   }
 
   // Si l'utilisateur est authentifié et essaie d'accéder à la page login ou racine, redirige vers /commandes
