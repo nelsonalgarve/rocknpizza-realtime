@@ -24,7 +24,7 @@ export default function LoginPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (motDePasse === process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
+    if (motDePasse === process.env.PUBLIC_ADMIN) {
       document.cookie = 'authenticated=true; path=/';
       router.push('/commandes');
     } else {
