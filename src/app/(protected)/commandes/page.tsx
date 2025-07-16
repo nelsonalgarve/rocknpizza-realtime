@@ -1,3 +1,7 @@
+// Suggestion : Tu pourrais envisager de déplacer la logique d'authentification (actuellement dans le layout)
+// vers un middleware ou une redirection depuis la page racine '/' si non authentifié,
+// afin d'afficher la page de login sur l'URL de base.
+
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';

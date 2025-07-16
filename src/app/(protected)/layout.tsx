@@ -8,10 +8,20 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   const router = useRouter();
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && localStorage.getItem('authenticated') !== 'true') {
-      router.push('/login');
+    const isAuthenticated = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith('authenticated='))
+      ?.split('=')[1] === 'true';
+
+    if (!isAuthenticated) {
+      router.push('/');
     }
   }, [router]);
+
+  const handleLogout = () => {
+    document.cookie = 'authenticated=; Max-Age=0; path=/';
+    router.push('/');
+  };
 
   return (
     <PizzasCocheesProvider>
@@ -19,10 +29,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
         <div className="absolute top-4 right-4">
           <button
             className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded shadow"
-            onClick={() => {
-              localStorage.removeItem('authenticated');
-              router.push('/login');
-            }}
+            onClick={handleLogout}
           >
             Se déconnecter
           </button>
