@@ -9,23 +9,28 @@ export default function LoginPage() {
   const [motDePasse, setMotDePasse] = useState('');
   const [erreur, setErreur] = useState('');
 
+  // Redirection si déjà connecté
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const isAuthenticated = document.cookie
-        .split('; ')
-        .find((row) => row.startsWith('authenticated='))
-        ?.split('=')[1] === 'true';
+    const isAuthenticated = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith('authenticated='))
+      ?.split('=')[1] === 'true';
 
-      if (isAuthenticated) {
-        router.push('/commandes');
-      }
+    if (isAuthenticated) {
+      router.push('/commandes');
     }
   }, [router]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (motDePasse === process.env.NEXT_PUBLIC_ADMIN_PASSWORD) {
-      document.cookie = 'authenticated=true; path=/';
+
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: motDePasse }),
+    });
+
+    if (res.ok) {
       router.push('/commandes');
     } else {
       setErreur('Mot de passe incorrect');

@@ -18,21 +18,25 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
     }
   }, [router]);
 
-  const handleLogout = () => {
-    document.cookie = 'authenticated=; Max-Age=0; path=/';
-    router.push('/');
-  };
+  // const handleLogout = () => {
+  //   document.cookie = 'authenticated=; Max-Age=0; path=/';
+  //   router.push('/');
+  // };
 
   return (
     <PizzasCocheesProvider>
       <div className="relative min-h-screen">
         <div className="absolute top-4 right-4">
-          <button
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded shadow"
-            onClick={handleLogout}
-          >
-            Se déconnecter
-          </button>
+         <button
+  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded shadow"
+  onClick={async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    router.push('/');
+  }}
+>
+  Se déconnecter
+</button>
+
         </div>
         {children}
       </div>
