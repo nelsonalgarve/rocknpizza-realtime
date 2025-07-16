@@ -17,7 +17,9 @@ export default function LoginPage() {
       ?.split('=')[1] === 'true';
 
     if (isAuthenticated) {
-      router.push('/commandes');
+      window.location.href = '/commandes';
+
+      // router.push('/commandes');
     }
   }, [router]);
 
