@@ -59,6 +59,16 @@ export default function CommandeCard({ commande, onUpdate, className }: Props) {
   const win = window.open('', '_blank');
   if (!win) return;
 
+ const qrAvisGoogle = commande.status === 'completed'
+  ? `
+    <div class="qr">
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://search.google.com/local/writereview?placeid=ChIJF2V4Q7iuxkcRfrMPwRnPG5I" alt="QR Google Avaliação" />
+    </div>
+    <div class="footer">📱 Deixe a sua avaliação no Google!</div>
+  `
+  : '';
+
+
   const contenu = `
     <html>
       <head>
@@ -88,9 +98,6 @@ export default function CommandeCard({ commande, onUpdate, className }: Props) {
             justify-content: space-between;
             margin-bottom: 4px;
           }
-          .bold {
-            font-weight: bold;
-          }
           .total {
             margin-top: 10px;
             font-weight: bold;
@@ -99,8 +106,17 @@ export default function CommandeCard({ commande, onUpdate, className }: Props) {
           }
           .footer {
             text-align: center;
-            margin-top: 12px;
+            margin-top: 10px;
             font-size: 11px;
+          }
+          .qr {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+          }
+          .qr img {
+            width: 100px;
+            height: 100px;
           }
         </style>
       </head>
@@ -118,11 +134,14 @@ export default function CommandeCard({ commande, onUpdate, className }: Props) {
           (item) => `
             <div class="line">
               <span>${item.quantity}× ${item.name}</span>
-              <span>${totalTTC(item)} €</span>
+              <span>${(parseFloat(item.total) + parseFloat(item.total_tax)).toFixed(2)} €</span>
             </div>`
         ).join('')}
         <div class="separator"></div>
         <div class="total">Total TTC : ${commande.total} €</div>
+
+        ${qrAvisGoogle}
+
         <div class="footer">Merci pour votre commande !</div>
 
         <script>
@@ -139,6 +158,7 @@ export default function CommandeCard({ commande, onUpdate, className }: Props) {
   win.document.write(contenu);
   win.document.close();
 };
+
 
   return (
     <div
