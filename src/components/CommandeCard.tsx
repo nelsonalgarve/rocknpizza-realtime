@@ -1,33 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { Commande, LineItem } from '@/types';
 import { usePizzasCochees } from '@/contexts/PizzasCocheesProvider';
-
-interface LineItem {
-  name: string;
-  quantity: number;
-  total: string;
-  total_tax: string;
-}
-
-interface Commande {
-  id: number;
-  billing: {
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone: string;
-  };
-  total: string;
-  date_created: string;
-  status: string;
-  line_items: LineItem[];
-}
 
 interface Props {
   commande: Commande;
   onUpdate: (id: number, updateData: Record<string, string>) => void;
-  onPrint?: (commande: Commande) => void;
   className?: string;
 }
 
@@ -55,179 +34,122 @@ export default function CommandeCard({ commande, onUpdate, className }: Props) {
     onUpdate(commande.id, { status: 'completed' });
   };
 
- const imprimerTicket = (commande: Commande) => {
-  const win = window.open('', '_blank');
-  if (!win) return;
+  const imprimerTicket = () => {
+    const win = window.open('', '_blank');
+    if (!win) return;
 
- const qrAvisGoogle = commande.status === 'completed'
-  ? `
-    <div class="qr">
-      <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://search.google.com/local/writereview?placeid=ChIJF2V4Q7iuxkcRfrMPwRnPG5I" alt="QR Google Avaliação" />
-    </div>
-    <div class="footer">📱 Deixe a sua avaliação no Google!</div>
-  `
-  : '';
+    const qrAvisGoogle = commande.status === 'completed'
+      ? `
+        <div class="qr">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://search.google.com/local/writereview?placeid=ChIJF2V4Q7iuxkcRfrMPwRnPG5I" alt="QR Google" />
+        </div>
+        <div class="footer">📱 Donnez votre avis Google !</div>
+      `
+      : '';
 
-
-  const contenu = `
-    <html>
-      <head>
-        <title>Ticket commande #${commande.id}</title>
-        <style>
-          * {
-            font-family: monospace;
-            font-size: 12px;
-            margin: 0;
-            padding: 0;
-            color: #000;
-          }
-          body {
-            padding: 10px;
-            width: 280px;
-          }
-          h2 {
-            text-align: center;
-            margin-bottom: 10px;
-          }
-          .separator {
-            border-top: 1px dashed #000;
-            margin: 8px 0;
-          }
-          .line {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 4px;
-          }
-          .total {
-            margin-top: 10px;
-            font-weight: bold;
-            font-size: 14px;
-            text-align: right;
-          }
-          .footer {
-            text-align: center;
-            margin-top: 10px;
-            font-size: 11px;
-          }
-          .qr {
-            display: flex;
-            justify-content: center;
-            margin-top: 10px;
-          }
-          .qr img {
-            width: 100px;
-            height: 100px;
-          }
-        </style>
-      </head>
-      <body>
-        <h2>ROCK'N PIZZA</h2>
-        <div class="separator"></div>
-        <div>Commande #${commande.id}</div>
-        <div>${new Date(commande.date_created).toLocaleString('fr-FR')}</div>
-        <div class="separator"></div>
-        <div>Client: ${commande.billing.first_name} ${commande.billing.last_name}</div>
-        <div>Tél: ${commande.billing.phone}</div>
-        <div>Email: ${commande.billing.email}</div>
-        <div class="separator"></div>
-        ${commande.line_items.map(
-          (item) => `
+    const contenu = `
+      <html>
+        <head>
+          <style>
+            body { font-family: monospace; padding: 10px; width: 280px; }
+            .separator { border-top: 1px dashed #000; margin: 8px 0; }
+            .line { display: flex; justify-content: space-between; margin-bottom: 4px; }
+            .total { margin-top: 10px; font-weight: bold; text-align: right; }
+            .footer { text-align: center; margin-top: 10px; font-size: 11px; }
+            .qr { display: flex; justify-content: center; margin-top: 10px; }
+            .qr img { width: 100px; height: 100px; }
+          </style>
+        </head>
+        <body>
+          <h2 style="text-align:center;">ROCK'N PIZZA</h2>
+          <div class="separator"></div>
+          <div>Commande #${commande.id}</div>
+          <div>${formattedDate}</div>
+          <div class="separator"></div>
+          <div>Client: ${commande.billing.first_name} ${commande.billing.last_name}</div>
+          <div>Tél: ${commande.billing.phone}</div>
+          <div>Email: ${commande.billing.email}</div>
+          <div class="separator"></div>
+          ${commande.line_items.map(item => `
             <div class="line">
               <span>${item.quantity}× ${item.name}</span>
-              <span>${(parseFloat(item.total) + parseFloat(item.total_tax)).toFixed(2)} €</span>
-            </div>`
-        ).join('')}
-        <div class="separator"></div>
-        <div class="total">Total TTC : ${commande.total} €</div>
+              <span>${totalTTC(item)} €</span>
+            </div>`).join('')}
+          <div class="separator"></div>
+          <div class="total">Total TTC : ${commande.total} €</div>
+          ${qrAvisGoogle}
+          <div class="footer">Merci pour votre commande !</div>
+          <script>
+            window.onload = () => { window.print(); window.onafterprint = () => window.close(); };
+          </script>
+        </body>
+      </html>
+    `;
 
-        ${qrAvisGoogle}
-
-        <div class="footer">Merci pour votre commande !</div>
-
-        <script>
-          window.onload = () => {
-            window.print();
-            window.onafterprint = () => window.close();
-          };
-        </script>
-      </body>
-    </html>
-  `;
-
-  win.document.open();
-  win.document.write(contenu);
-  win.document.close();
-};
-
+    win.document.open();
+    win.document.write(contenu);
+    win.document.close();
+  };
 
   return (
-    <div
-      className={`bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 shadow-lg border border-gray-200 dark:border-gray-600 w-full sm:w-[48%] lg:w-[32%] flex flex-col justify-between h-full transition-all duration-500 ease-in-out ${className}`}
-    >
-      <div>
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
+    <div className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm p-4 ${className}`}>
+      <div className="flex flex-col flex-grow">
+        <div className="flex justify-between items-start mb-4">
           <div>
-            <h3 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-white">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
               #{commande.id} – {commande.billing.first_name} {commande.billing.last_name}
             </h3>
             <p className="text-sm text-gray-500">{formattedDate}</p>
             <p className="text-sm text-gray-600 dark:text-gray-300">📧 {commande.billing.email}</p>
             <p className="text-sm text-gray-600 dark:text-gray-300">📞 {commande.billing.phone}</p>
           </div>
-          <span
-            className={`text-sm font-bold px-4 py-1.5 rounded-full shadow-md border transition-colors duration-300 ${
-              commande.status === 'processing'
-                ? 'bg-orange-500 text-white border-orange-600 animate-pulse'
-                : commande.status === 'preparation'
-                ? 'bg-yellow-100 text-yellow-800 border-yellow-300'
-                : commande.status === 'completed'
-                ? 'bg-green-100 text-green-800 border-green-300'
-                : 'bg-gray-100 text-gray-800 border-gray-300'
-            }`}
-          >
-            {commande.status === 'processing' && '🟠  Nouvelle'}
+          <span className={`text-sm font-bold px-3 py-1 rounded-full ${
+            commande.status === 'processing' ? 'bg-orange-500 text-white' :
+            commande.status === 'preparation' ? 'bg-yellow-100 text-yellow-800' :
+            'bg-green-100 text-green-800'
+          }`}>
+            {commande.status === 'processing' && '🟠 Nouvelle'}
             {commande.status === 'preparation' && '🧑‍🍳 En préparation'}
             {commande.status === 'completed' && '✅ Terminée'}
           </span>
         </div>
 
-        <div className="divide-y divide-gray-200 text-base text-gray-700 dark:text-gray-300">
-          {commande.line_items.map((item, idx) => {
-            const name = `${item.quantity}× ${item.name}`;
-            return commande.status === 'preparation' ? (
-              <label key={idx} className="py-2 flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="accent-green-600"
-                  checked={getPizzaChecked(commande.id, name)}
-                  onChange={() => togglePizzaChecked(commande.id, name)}
-                />
-                <div className="flex justify-between w-full">
-                  <span className={getPizzaChecked(commande.id, name) ? 'line-through text-gray-400' : ''}>
-                    {name}
-                  </span>
-                  <span className="font-semibold text-gray-800 dark:text-white">
-                    {totalTTC(item)} €
-                  </span>
-                </div>
-              </label>
-            ) : (
-              <div key={idx} className="py-2 flex justify-between">
-                <span>
-                  <strong>{item.quantity}×</strong> {item.name}
-                </span>
-                <span className="font-semibold text-gray-800 dark:text-white">
-                  {totalTTC(item)} €
-                </span>
-              </div>
-            );
-          })}
+       <div className="divide-y divide-gray-100 text-base text-gray-700 dark:text-gray-300">
+  {commande.line_items.map((item, idx) => {
+    const name = `${item.quantity}× ${item.name}`;
+    const isChecked = getPizzaChecked(commande.id, name);
+    
+    return commande.status === 'preparation' ? (
+      <label key={idx} className="py-2 flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          className="accent-green-600"
+          checked={isChecked}
+          onChange={() => togglePizzaChecked(commande.id, name)}
+        />
+        <div className={`flex justify-between w-full transition ${
+          isChecked ? 'line-through text-gray-400 opacity-60' : ''
+        }`}>
+          <span>{name}</span>
+          <span className="font-semibold">{totalTTC(item)} €</span>
         </div>
+      </label>
+    ) : (
+      <div key={idx} className="py-2 flex justify-between">
+        <span>
+          <strong>{item.quantity}×</strong> {item.name}
+        </span>
+        <span className="font-semibold text-gray-800 dark:text-white">
+          {totalTTC(item)} €
+        </span>
+      </div>
+    );
+  })}
+</div>
 
-        <div className="flex justify-between items-center text-sm text-gray-600 border-t pt-3 mt-3">
-          <span className="font-bold text-lg text-gray-800 dark:text-white">
-            Total : {commande.total} €
-          </span>
+
+        <div className="text-right font-bold text-lg mt-4">
+          Total : {commande.total} €
         </div>
 
         {showWarning && (
@@ -235,39 +157,33 @@ export default function CommandeCard({ commande, onUpdate, className }: Props) {
         )}
       </div>
 
-      <div className="mt-4 pt-2 flex flex-wrap gap-2 justify-end">
+      <div className="mt-4 flex flex-wrap gap-2 justify-end">
         {commande.status === 'processing' && (
-          <button
-            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded-lg shadow-md transition transform active:scale-95"
-            onClick={() => onUpdate(commande.id, { status: 'preparation' })}
-          >
+          <button onClick={() => onUpdate(commande.id, { status: 'preparation' })}
+            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-1.5 rounded">
             🍕 Passer en préparation
           </button>
         )}
         {commande.status === 'preparation' && (
           <button
             disabled={!toutesCochees}
-            className={`${
-              toutesCochees
-                ? 'bg-green-600 hover:bg-green-700'
-                : 'bg-gray-300 cursor-not-allowed'
-            } text-white px-4 py-1.5 rounded-lg shadow-md transition transform active:scale-95`}
             onClick={handleMarquerTerminee}
+            className={`px-4 py-1.5 rounded text-white ${
+              toutesCochees ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-300 cursor-not-allowed'
+            }`}
           >
             ✅ Marquer comme terminée
           </button>
         )}
         {commande.status === 'completed' && (
-          <button
-            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-1.5 rounded-lg shadow-md transition transform active:scale-95"
-            onClick={() => onUpdate(commande.id, { status: 'processing' })}
-          >
+          <button onClick={() => onUpdate(commande.id, { status: 'processing' })}
+            className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-1.5 rounded">
             ↩️ Remettre en préparation
           </button>
         )}
         <button
-          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded-lg shadow-md transition transform active:scale-95"
-          onClick={() => imprimerTicket(commande)}
+          onClick={imprimerTicket}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-1.5 rounded"
         >
           🖨️ Imprimer
         </button>

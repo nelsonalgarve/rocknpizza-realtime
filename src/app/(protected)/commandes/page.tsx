@@ -1,42 +1,18 @@
-// Suggestion : Tu pourrais envisager de déplacer la logique d'authentification (actuellement dans le layout)
-// vers un middleware ou une redirection depuis la page racine '/' si non authentifié,
-// afin d'afficher la page de login sur l'URL de base.
-
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import CommandeCard from '@/components/CommandeCard';
+import PizzasAPreparer from '@/components/PizzasAPreparer';
 import toast from 'react-hot-toast';
 import dayjs from 'dayjs';
-import { usePizzasCochees } from '@/contexts/PizzasCocheesProvider';
-
-interface LineItem {
-  name: string;
-  quantity: number;
-  total: string;
-  total_tax: string;
-}
-
-interface Commande {
-  id: number;
-  billing: {
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone: string;
-  };
-  total: string;
-  date_created: string;
-  status: string;
-  line_items: LineItem[];
-}
+// import { usePizzasCochees } from '@/contexts/PizzasCocheesProvider';
+import { Commande } from '@/types';
 
 type CommandeCache = { id: number; status: string };
 
 export default function CommandesPage() {
   const [commandes, setCommandes] = useState<Commande[]>([]);
   const [commandesTerminees, setCommandesTerminees] = useState<Commande[]>([]);
-  // const [loading, setLoading] = useState(true);
   const [filtreDate, setFiltreDate] = useState<string>(() => dayjs().format('YYYY-MM-DD'));
   const [sonActif, setSonActif] = useState(false);
   const [nextNotifIn, setNextNotifIn] = useState(15);
@@ -45,7 +21,7 @@ export default function CommandesPage() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const sonIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
-  const { getPizzaChecked, togglePizzaChecked } = usePizzasCochees();
+  // const { getPizzaChecked } = usePizzasCochees();
 
   const playNotification = useCallback(async () => {
     const audio = audioRef.current;
@@ -144,8 +120,6 @@ export default function CommandesPage() {
       setCommandes(data);
     } catch (error) {
       console.error('Erreur chargement commandes:', error);
-    } finally {
-      // setLoading(false);
     }
   }, [playNotification, sonActif, startSoundLoop, stopSoundLoop]);
 
@@ -176,7 +150,11 @@ export default function CommandesPage() {
       const client = updatedCommande ? `${updatedCommande.billing.first_name} ${updatedCommande.billing.last_name}` : 'Client inconnu';
       const nouveauStatut = updateData.status;
 
-      const statutLisible = nouveauStatut === 'processing' ? '🟠 Confirmée' : nouveauStatut === 'preparation' ? '🧑‍🍳 En préparation' : nouveauStatut === 'completed' ? '✅ Terminée' : nouveauStatut;
+      const statutLisible =
+        nouveauStatut === 'processing' ? '🟠 Confirmée'
+        : nouveauStatut === 'preparation' ? '🧑‍🍳 En préparation'
+        : nouveauStatut === 'completed' ? '✅ Terminée'
+        : nouveauStatut;
 
       toast.success(`✅ Statut mis à jour pour ${client} → ${statutLisible}`);
       await fetchCommandes();
@@ -214,45 +192,31 @@ export default function CommandesPage() {
 
       <div className="flex flex-wrap gap-2 mb-6 items-center">
         <button
-          className={`${
-            ongletActif === 'actives' ? 'bg-orange-600' : 'bg-orange-500'
-          } text-white px-4 py-2 rounded shadow`}
+          className={`${ongletActif === 'actives' ? 'bg-orange-600' : 'bg-orange-500'} text-white px-4 py-2 rounded shadow`}
           onClick={() => setOngletActif('actives')}
         >
           Voir commandes actives
         </button>
         <button
-          className={`${
-            ongletActif === 'terminees' ? 'bg-gray-800' : 'bg-gray-700'
-          } text-white px-4 py-2 rounded shadow`}
+          className={`${ongletActif === 'terminees' ? 'bg-gray-800' : 'bg-gray-700'} text-white px-4 py-2 rounded shadow`}
           onClick={() => setOngletActif('terminees')}
         >
           Voir terminées
         </button>
         <button
-          className={`${
-            ongletActif === 'pizzas' ? 'bg-yellow-600' : 'bg-yellow-500'
-          } text-white px-4 py-2 rounded shadow`}
+          className={`${ongletActif === 'pizzas' ? 'bg-yellow-600' : 'bg-yellow-500'} text-white px-4 py-2 rounded shadow`}
           onClick={() => setOngletActif('pizzas')}
         >
           Voir pizzas à préparer
         </button>
         <button
-          className={`${sonActif ? 'bg-green-600' : 'bg-red-600'} text-white px-4 py-2 rounded shadow transition duration-200`}
-          onClick={() => {
-            if (sonActif) {
-              desactiverSon();
-            } else {
-              activerSon();
-            }
-          }}
+          className={`${sonActif ? 'bg-green-600' : 'bg-red-600'} text-white px-4 py-2 rounded shadow`}
+          onClick={() => sonActif ? desactiverSon() : activerSon()}
         >
           🔔 Notifications {sonActif ? 'activées' : 'désactivées'}
         </button>
         {sonActif && (
-          <span className="text-sm text-gray-700">
-            Prochaine alerte dans {nextNotifIn}s
-          </span>
+          <span className="text-sm text-gray-700">Prochaine alerte dans {nextNotifIn}s</span>
         )}
       </div>
 
@@ -260,7 +224,7 @@ export default function CommandesPage() {
         <>
           <section>
             <h2 className="text-xl font-semibold mb-2">🟠 Confirmées / Payées</h2>
-            <div className="flex flex-wrap gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
               {commandesParStatut('processing').map((cmd) => (
                 <CommandeCard key={cmd.id} commande={cmd} onUpdate={updateCommande} />
               ))}
@@ -269,7 +233,7 @@ export default function CommandesPage() {
 
           <section className="border-t border-gray-300 pt-6 mt-6">
             <h2 className="text-xl font-semibold mb-2">🧑‍🍳 En préparation</h2>
-            <div className="flex flex-wrap gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
               {commandesParStatut('preparation').map((cmd) => (
                 <CommandeCard key={cmd.id} commande={cmd} onUpdate={updateCommande} />
               ))}
@@ -291,9 +255,9 @@ export default function CommandesPage() {
           </div>
           <section>
             <h2 className="text-xl font-semibold mb-2">✅ Terminées ({filtreDate})</h2>
-            <div className="flex flex-wrap gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
               {commandesTermineesFiltrees.map((cmd) => (
-                <CommandeCard key={cmd.id} commande={cmd} onUpdate={updateCommande} />
+                <CommandeCard key={cmd.id} commande={cmd} onUpdate={updateCommande} className="h-full" />
               ))}
             </div>
           </section>
@@ -301,47 +265,7 @@ export default function CommandesPage() {
       )}
 
       {ongletActif === 'pizzas' && (
-        <section>
-          <h2 className="text-xl font-semibold mb-4">🍕 Pizzas à préparer</h2>
-          <ul className="space-y-4">
-            {commandesParStatut('preparation')
-              .flatMap((commande) =>
-                commande.line_items.map((item, idx) => {
-                  const name = `${item.quantity}× ${item.name}`;
-                  const checked = getPizzaChecked(commande.id, name);
-                  return {
-                    key: `${commande.id}-${idx}`,
-                    name,
-                    commandeId: commande.id,
-                    client: `${commande.billing.first_name} ${commande.billing.last_name}`,
-                    checked,
-                  };
-                })
-              )
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((pizza) => (
-                <li
-                  key={pizza.key}
-                  className="border p-3 rounded shadow bg-white flex items-start gap-2"
-                >
-                  <input
-                    type="checkbox"
-                    className="accent-green-600 mt-1"
-                    checked={pizza.checked}
-                    onChange={() => togglePizzaChecked(pizza.commandeId, pizza.name)}
-                  />
-                  <div>
-                    <div className={pizza.checked ? 'line-through text-gray-400' : ''}>
-                      {pizza.name}
-                    </div>
-                    <div className="text-xs text-gray-600">
-                      Commande #{pizza.commandeId} – {pizza.client}
-                    </div>
-                  </div>
-                </li>
-              ))}
-          </ul>
-        </section>
+        <PizzasAPreparer commandes={commandes} />
       )}
     </div>
   );
