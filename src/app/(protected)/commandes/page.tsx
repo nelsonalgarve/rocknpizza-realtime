@@ -190,35 +190,51 @@ export default function CommandesPage() {
 
       <h1 className="text-2xl font-bold mb-4">📦 Commandes</h1>
 
-      <div className="flex flex-wrap gap-2 mb-6 items-center">
-        <button
-          className={`${ongletActif === 'actives' ? 'bg-orange-600' : 'bg-orange-500'} text-white px-4 py-2 rounded shadow`}
-          onClick={() => setOngletActif('actives')}
-        >
-          Voir commandes actives
-        </button>
-        <button
-          className={`${ongletActif === 'terminees' ? 'bg-gray-800' : 'bg-gray-700'} text-white px-4 py-2 rounded shadow`}
-          onClick={() => setOngletActif('terminees')}
-        >
-          Voir terminées
-        </button>
-        <button
-          className={`${ongletActif === 'pizzas' ? 'bg-yellow-600' : 'bg-yellow-500'} text-white px-4 py-2 rounded shadow`}
-          onClick={() => setOngletActif('pizzas')}
-        >
-          Voir pizzas à préparer
-        </button>
-        <button
-          className={`${sonActif ? 'bg-green-600' : 'bg-red-600'} text-white px-4 py-2 rounded shadow`}
-          onClick={() => sonActif ? desactiverSon() : activerSon()}
-        >
-          🔔 Notifications {sonActif ? 'activées' : 'désactivées'}
-        </button>
-        {sonActif && (
-          <span className="text-sm text-gray-700">Prochaine alerte dans {nextNotifIn}s</span>
-        )}
-      </div>
+     <div className="flex flex-col sm:flex-row flex-wrap gap-2 mb-6">
+  {[
+    { label: '📦 Voir commandes actives', value: 'actives', color: 'orange' },
+    { label: '✅ Voir terminées', value: 'terminees', color: 'green' },
+    { label: '🍕 Voir pizzas à préparer', value: 'pizzas', color: 'yellow' },
+  ].map((btn) => {
+    const isActive = ongletActif === btn.value;
+    return (
+      <button
+        key={btn.value}
+        className={`px-4 py-2 rounded-md text-sm font-medium border shadow-sm transition w-full sm:w-auto
+          ${
+            isActive
+              ? `bg-${btn.color}-600 text-white border-${btn.color}-700`
+              : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-300'
+          }`}
+        onClick={() => setOngletActif(btn.value as typeof ongletActif)}
+      >
+        {btn.label}
+      </button>
+    );
+  })}
+
+  <button
+    className={`px-4 py-2 rounded-md text-sm font-medium border shadow-sm transition w-full sm:w-auto
+      ${sonActif ? 'bg-green-600 text-white border-green-700' : 'bg-red-600 text-white border-red-700'}`}
+    onClick={() => {
+      if (sonActif) {
+        desactiverSon();
+      } else {
+        activerSon();
+      }
+    }}
+  >
+    🔔 Notifications {sonActif ? 'activées' : 'désactivées'}
+  </button>
+
+  {sonActif && (
+    <span className="text-sm text-gray-600 self-center">
+      Prochaine alerte dans {nextNotifIn}s
+    </span>
+  )}
+</div>
+
+
 
       {ongletActif === 'actives' && (
         <>

@@ -28,7 +28,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
       <div className="relative min-h-screen">
         <div className="absolute top-4 right-4">
          <button
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded shadow"
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition shadow-sm w-full sm:w-auto"
             onClick={async () => {
             await fetch('/api/logout', { method: 'POST' });
             window.location.href = '/';
