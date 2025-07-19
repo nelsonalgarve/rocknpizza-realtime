@@ -1,3 +1,5 @@
+// Fichier : app/(protected)/commandes/page.tsx
+
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
@@ -6,7 +8,28 @@ import PizzasAPreparer from '@/components/PizzasAPreparer';
 import toast from 'react-hot-toast';
 import dayjs from 'dayjs';
 // import { usePizzasCochees } from '@/contexts/PizzasCocheesProvider';
-import { Commande } from '@/types';
+
+// Types internes
+interface LineItem {
+  name: string;
+  quantity: number;
+  total: string;
+  total_tax: string;
+}
+
+interface Commande {
+  id: number;
+  billing: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+  };
+  total: string;
+  date_created: string;
+  status: string;
+  line_items: LineItem[];
+}
 
 type CommandeCache = { id: number; status: string };
 
@@ -16,7 +39,7 @@ export default function CommandesPage() {
   const [filtreDate, setFiltreDate] = useState<string>(() => dayjs().format('YYYY-MM-DD'));
   const [sonActif, setSonActif] = useState(false);
   const [nextNotifIn, setNextNotifIn] = useState(15);
-  const [ongletActif, setOngletActif] = useState<'actives' | 'terminees' | 'pizzas'>('actives');
+  const [ongletActif, setOngletActif] = useState<'actives' | 'preparation' | 'terminees' | 'pizzas'>('actives');
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const sonIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -146,26 +169,13 @@ export default function CommandesPage() {
         return;
       }
 
-      const updatedCommande = commandes.find((cmd) => cmd.id === id);
-      const client = updatedCommande ? `${updatedCommande.billing.first_name} ${updatedCommande.billing.last_name}` : 'Client inconnu';
-      const nouveauStatut = updateData.status;
-
-      const statutLisible =
-        nouveauStatut === 'processing' ? '🟠 Confirmée'
-        : nouveauStatut === 'preparation' ? '🧑‍🍳 En préparation'
-        : nouveauStatut === 'completed' ? '✅ Terminée'
-        : nouveauStatut;
-
-      toast.success(`✅ Statut mis à jour pour ${client} → ${statutLisible}`);
+      toast.success('✅ Statut mis à jour');
       await fetchCommandes();
       await fetchCommandesTerminees();
     } catch (err) {
       console.error('Erreur updateCommande:', err);
     }
   };
-
-  const commandesParStatut = (statut: string, source: Commande[] = commandes) =>
-    source.filter((cmd) => cmd.status === statut);
 
   useEffect(() => {
     fetchCommandes();
@@ -180,9 +190,8 @@ export default function CommandesPage() {
     };
   }, [fetchCommandes, stopSoundLoop]);
 
-  const commandesTermineesFiltrees = commandesTerminees.filter((cmd) =>
-    dayjs(cmd.date_created).format('YYYY-MM-DD') === filtreDate
-  );
+  const commandesParStatut = (statut: string) => commandes.filter((cmd) => cmd.status === statut);
+  const commandesTermineesFiltrees = commandesTerminees.filter((cmd) => dayjs(cmd.date_created).format('YYYY-MM-DD') === filtreDate);
 
   return (
     <div className="p-4 space-y-12">
@@ -192,74 +201,62 @@ export default function CommandesPage() {
 
      <div className="flex flex-col sm:flex-row flex-wrap gap-2 mb-6">
   {[
-    { label: '📦 Voir commandes actives', value: 'actives', color: 'orange' },
-    { label: '✅ Voir terminées', value: 'terminees', color: 'green' },
-    { label: '🍕 Voir pizzas à préparer', value: 'pizzas', color: 'yellow' },
-  ].map((btn) => {
-    const isActive = ongletActif === btn.value;
-    return (
-      <button
-        key={btn.value}
-        className={`px-4 py-2 rounded-md text-sm font-medium border shadow-sm transition w-full sm:w-auto
-          ${
-            isActive
-              ? `bg-${btn.color}-600 text-white border-${btn.color}-700`
-              : 'bg-white text-gray-800 hover:bg-gray-50 border-gray-300'
-          }`}
-        onClick={() => setOngletActif(btn.value as typeof ongletActif)}
-      >
-        {btn.label}
-      </button>
-    );
-  })}
+    { label: '🟠 Confirmées', value: 'actives', color: 'orange' },
+    { label: '🧑‍🍳 En préparation', value: 'preparation', color: 'yellow' },
+    { label: '🍕 Pizzas à préparer', value: 'pizzas', color: 'pink' },
+    { label: '✅ Terminées', value: 'terminees', color: 'green' },
+  ].map((btn) => (
+    <button
+      key={btn.value}
+      className={`px-3 py-1.5 rounded-md text-sm font-medium border shadow-sm transition w-full sm:w-auto
+        ${
+          ongletActif === btn.value
+            ? `bg-${btn.color}-600 text-white border-${btn.color}-700`
+            : 'bg-white text-gray-800 hover:bg-gray-100 border-gray-300'
+        }`}
+      onClick={() => setOngletActif(btn.value as typeof ongletActif)}
+    >
+      {btn.label}
+    </button>
+  ))}
 
   <button
-    className={`px-4 py-2 rounded-md text-sm font-medium border shadow-sm transition w-full sm:w-auto
+    className={`px-3 py-1.5 rounded-md text-sm font-medium border shadow-sm transition w-full sm:w-auto
       ${sonActif ? 'bg-green-600 text-white border-green-700' : 'bg-red-600 text-white border-red-700'}`}
-    onClick={() => {
-      if (sonActif) {
-        desactiverSon();
-      } else {
-        activerSon();
-      }
-    }}
+    onClick={sonActif ? desactiverSon : activerSon}
   >
     🔔 Notifications {sonActif ? 'activées' : 'désactivées'}
   </button>
 
   {sonActif && (
-    <span className="text-sm text-gray-600 self-center">
-      Prochaine alerte dans {nextNotifIn}s
-    </span>
+    <span className="text-sm text-gray-600 self-center">Prochaine alerte dans {nextNotifIn}s</span>
   )}
 </div>
 
-
-
       {ongletActif === 'actives' && (
-        <>
-          <section>
-            <h2 className="text-xl font-semibold mb-2">🟠 Confirmées / Payées</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
-              {commandesParStatut('processing').map((cmd) => (
-                <CommandeCard key={cmd.id} commande={cmd} onUpdate={updateCommande} />
-              ))}
-            </div>
-          </section>
+        <section>
+          <h2 className="text-xl font-semibold mb-2">🟠 Confirmées / Payées</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {commandesParStatut('processing').map((cmd) => (
+              <CommandeCard key={cmd.id} commande={cmd} onUpdate={updateCommande} />
+            ))}
+          </div>
+        </section>
+      )}
 
-          <section className="border-t border-gray-300 pt-6 mt-6">
-            <h2 className="text-xl font-semibold mb-2">🧑‍🍳 En préparation</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
-              {commandesParStatut('preparation').map((cmd) => (
-                <CommandeCard key={cmd.id} commande={cmd} onUpdate={updateCommande} />
-              ))}
-            </div>
-          </section>
-        </>
+      {ongletActif === 'preparation' && (
+        <section>
+          <h2 className="text-xl font-semibold mb-2">🧑‍🍳 Commandes en préparation</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {commandesParStatut('preparation').map((cmd) => (
+              <CommandeCard key={cmd.id} commande={cmd} onUpdate={updateCommande} />
+            ))}
+          </div>
+        </section>
       )}
 
       {ongletActif === 'terminees' && (
-        <>
+        <section>
           <div className="mb-4">
             <label className="text-sm mr-2 font-medium text-gray-700">Filtrer par date :</label>
             <input
@@ -269,19 +266,17 @@ export default function CommandesPage() {
               className="border px-3 py-1 rounded shadow-sm text-sm"
             />
           </div>
-          <section>
-            <h2 className="text-xl font-semibold mb-2">✅ Terminées ({filtreDate})</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
-              {commandesTermineesFiltrees.map((cmd) => (
-                <CommandeCard key={cmd.id} commande={cmd} onUpdate={updateCommande} className="h-full" />
-              ))}
-            </div>
-          </section>
-        </>
+          <h2 className="text-xl font-semibold mb-2">✅ Terminées ({filtreDate})</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {commandesTermineesFiltrees.map((cmd) => (
+              <CommandeCard key={cmd.id} commande={cmd} onUpdate={updateCommande} />
+            ))}
+          </div>
+        </section>
       )}
 
       {ongletActif === 'pizzas' && (
-        <PizzasAPreparer commandes={commandes} />
+        <PizzasAPreparer commandes={commandesParStatut('preparation')} />
       )}
     </div>
   );
