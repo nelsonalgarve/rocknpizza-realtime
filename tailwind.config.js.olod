@@ -1,0 +1,22 @@
+module.exports = {
+  content: [
+    './src/**/*.{js,ts,jsx,tsx}',
+    './app/**/*.{js,ts,jsx,tsx}',
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+  safelist: [
+    {
+      pattern: /bg-(orange|yellow|gray|pink|green|red)-(500|600|700)/,
+      variants: ['hover', 'focus'],
+    },
+    {
+      pattern: /border-(orange|yellow|gray|pink|green|red)-(500|600|700)/,
+    },
+    {
+      pattern: /text-white|text-gray-800|text-gray-700/,
+    },
+  ],
+};

@@ -7,9 +7,8 @@ import CommandeCard from '@/components/CommandeCard';
 import PizzasAPreparer from '@/components/PizzasAPreparer';
 import toast from 'react-hot-toast';
 import dayjs from 'dayjs';
-// import { usePizzasCochees } from '@/contexts/PizzasCocheesProvider';
+import { usePizzasCochees } from '@/contexts/PizzasCocheesProvider';
 
-// Types internes
 interface LineItem {
   name: string;
   quantity: number;
@@ -44,7 +43,7 @@ export default function CommandesPage() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const sonIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
-  // const { getPizzaChecked } = usePizzasCochees();
+  const { getPizzaChecked } = usePizzasCochees();
 
   const playNotification = useCallback(async () => {
     const audio = audioRef.current;
@@ -193,45 +192,39 @@ export default function CommandesPage() {
   const commandesParStatut = (statut: string) => commandes.filter((cmd) => cmd.status === statut);
   const commandesTermineesFiltrees = commandesTerminees.filter((cmd) => dayjs(cmd.date_created).format('YYYY-MM-DD') === filtreDate);
 
+  const pizzasAPreparer = commandesParStatut('preparation').flatMap((cmd) =>
+    cmd.line_items.map((item) => {
+      const name = `${item.quantity}× ${item.name}`;
+      return getPizzaChecked(cmd.id, name) ? 0 : item.quantity;
+    })
+  );
+
+  const totalPizzasAPreparer = pizzasAPreparer.reduce((acc, qty) => acc + qty, 0);
+
   return (
     <div className="p-4 space-y-12">
       <audio ref={audioRef} src="/ding.mp3" preload="auto" />
 
       <h1 className="text-2xl font-bold mb-4">📦 Commandes</h1>
 
-     <div className="flex flex-col sm:flex-row flex-wrap gap-2 mb-6">
-  {[
-    { label: '🟠 Confirmées', value: 'actives', color: 'orange' },
-    { label: '🧑‍🍳 En préparation', value: 'preparation', color: 'yellow' },
-    { label: '🍕 Pizzas à préparer', value: 'pizzas', color: 'pink' },
-    { label: '✅ Terminées', value: 'terminees', color: 'green' },
-  ].map((btn) => (
-    <button
-      key={btn.value}
-      className={`px-3 py-1.5 rounded-md text-sm font-medium border shadow-sm transition w-full sm:w-auto
-        ${
-          ongletActif === btn.value
-            ? `bg-${btn.color}-600 text-white border-${btn.color}-700`
-            : 'bg-white text-gray-800 hover:bg-gray-100 border-gray-300'
-        }`}
-      onClick={() => setOngletActif(btn.value as typeof ongletActif)}
-    >
-      {btn.label}
-    </button>
-  ))}
-
-  <button
-    className={`px-3 py-1.5 rounded-md text-sm font-medium border shadow-sm transition w-full sm:w-auto
-      ${sonActif ? 'bg-green-600 text-white border-green-700' : 'bg-red-600 text-white border-red-700'}`}
-    onClick={sonActif ? desactiverSon : activerSon}
-  >
-    🔔 Notifications {sonActif ? 'activées' : 'désactivées'}
-  </button>
-
-  {sonActif && (
-    <span className="text-sm text-gray-600 self-center">Prochaine alerte dans {nextNotifIn}s</span>
-  )}
-</div>
+      <div className="flex flex-col sm:flex-row flex-wrap gap-2 mb-6">
+        <button onClick={() => setOngletActif('actives')} className={`px-3 py-1.5 rounded-md text-sm font-medium border shadow-sm transition w-full sm:w-auto ${ongletActif === 'actives' ? 'bg-orange-600 text-white border-orange-700' : 'bg-white text-gray-800 hover:bg-gray-100 border-gray-300'}`}>
+          🟠 Confirmées ({commandesParStatut('processing').length})
+        </button>
+        <button onClick={() => setOngletActif('preparation')} className={`px-3 py-1.5 rounded-md text-sm font-medium border shadow-sm transition w-full sm:w-auto ${ongletActif === 'preparation' ? 'bg-yellow-600 text-white border-yellow-700' : 'bg-white text-gray-800 hover:bg-gray-100 border-gray-300'}`}>
+          🧑‍🍳 En préparation ({commandesParStatut('preparation').length})
+        </button>
+        <button onClick={() => setOngletActif('pizzas')} className={`px-3 py-1.5 rounded-md text-sm font-medium border shadow-sm transition w-full sm:w-auto ${ongletActif === 'pizzas' ? 'bg-pink-600 text-white border-pink-700' : 'bg-white text-gray-800 hover:bg-gray-100 border-gray-300'}`}>
+          🍕 Pizzas à préparer ({totalPizzasAPreparer})
+        </button>
+        <button onClick={() => setOngletActif('terminees')} className={`px-3 py-1.5 rounded-md text-sm font-medium border shadow-sm transition w-full sm:w-auto ${ongletActif === 'terminees' ? 'bg-green-800 text-white border-green-700' : 'bg-white text-gray-800 hover:bg-green-100 border-gray-300'}`}>
+          ✅ Terminées ({commandesTermineesFiltrees.length})
+        </button>
+        <button className={`px-3 py-1.5 rounded-md text-sm font-medium border shadow-sm transition w-full sm:w-auto ${sonActif ? 'bg-green-600 text-white border-green-700' : 'bg-red-600 text-white border-red-700'}`} onClick={sonActif ? desactiverSon : activerSon}>
+          🔔 Notifications {sonActif ? 'activées' : 'désactivées'}
+        </button>
+        {sonActif && <span className="text-sm text-gray-600 self-center">Prochaine alerte dans {nextNotifIn}s</span>}
+      </div>
 
       {ongletActif === 'actives' && (
         <section>
